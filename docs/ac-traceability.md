@@ -1,15 +1,25 @@
 # AC Traceability
 
-- AC-MVP-01
-- AC-MVP-02
-- AC-MVP-03
-- AC-MVP-04
-- AC-MVP-05
-- AC-MVP-06
-- AC-MVP-07
-- AC-MVP-08
-- AC-MVP-09
-- AC-MVP-10
-- AC-MVP-11
-- AC-MVP-12
-- AC-P1-13
+## AC Catalog and Current Status
+
+| AC ID | Scope | Status | Evidence Source |
+|---|---|---|---|
+| AC-MVP-01 | Repo/project bootstrap | PASS | `Package.swift`, `Sources/FeedTrackerCLI/main.swift`, `docs/ios-watchos-project-skeleton.md` |
+| AC-MVP-02 | Env/config baseline | PASS | `.env.example`, `docs/secrets-manifest.md`, `Sources/FeedTrackerCore/Configuration/RuntimeConfig.swift`, `Tests/FeedTrackerCoreTests/RuntimeConfigLoaderTests.swift` |
+| AC-MVP-03 | Auth/security baseline | PASS | `docs/auth-boundary.md`, `Sources/FeedTrackerCore/Security/AuthSession.swift`, `Tests/FeedTrackerCoreTests/AuthSessionStoreTests.swift` |
+| AC-MVP-04 | Domain/data model baseline | PASS | `Sources/FeedTrackerCore/FeedItem.swift`, `Sources/FeedTrackerCore/Persistence/FeedItemRepository.swift`, `Sources/FeedTrackerCore/Persistence/StorageMigration.swift`, `docs/local-storage-migration-strategy.md`, `Tests/FeedTrackerCoreTests/FeedItemTests.swift`, `Tests/FeedTrackerCoreTests/InMemoryFeedItemRepositoryTests.swift` |
+| AC-MVP-05 | Timer engine state machine | TODO | pending implementation + tests |
+| AC-MVP-06 | Active session UI live timing | TODO | pending implementation + UI evidence |
+| AC-MVP-07 | History list | TODO | pending implementation + tests |
+| AC-MVP-08 | Edit historical session | TODO | pending implementation + tests |
+| AC-MVP-09 | Delete historical session | TODO | pending implementation + tests |
+| AC-MVP-10 | Live Activity / Dynamic Island actions | TODO | pending ActivityKit implementation |
+| AC-MVP-11 | Main navigation + visual quality baseline | TODO | pending UI structure and review checklist |
+| AC-MVP-12 | Local persistence durability + migration | TODO | pending storage layer + migration tests |
+| AC-P1-13 | Siri shortcuts (open/start/read) | TODO | pending AppIntents implementation |
+
+## Primary Requirement Source
+- `docs/pm-prd-v1.md`
+
+## Current Implementation Focus
+- Batch B3 targets AC-MVP-05..08.
