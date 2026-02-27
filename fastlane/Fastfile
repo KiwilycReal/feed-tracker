@@ -1,0 +1,25 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Bootstrap release lane: validate env wiring for TestFlight flow"
+  lane :testflight do
+    required_env_keys = %w[
+      APP_STORE_CONNECT_API_KEY_ID
+      APP_STORE_CONNECT_API_ISSUER_ID
+      APP_STORE_CONNECT_API_KEY_BASE64
+      APPLE_ID
+      APPLE_TEAM_ID
+      MATCH_PASSWORD
+      MATCH_GIT_BASIC_AUTHORIZATION
+      KEYCHAIN_PASSWORD
+      FASTLANE_SESSION
+    ]
+
+    missing = required_env_keys.select { |key| ENV.fetch(key, "").strip.empty? }
+    unless missing.empty?
+      UI.user_error!("Missing required release secrets: #{missing.join(', ')}")
+    end
+
+    UI.important("Bootstrap lane only: release workflow path validated (no binary upload yet).")
+  end
+end

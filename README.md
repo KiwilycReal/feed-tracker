@@ -20,6 +20,12 @@ swift run feed-tracker-cli
 ## Architecture
 View -> ViewModel -> UseCase -> Repository/Service
 
+## Release Workflow (Bootstrap)
+- GitHub Action: `.github/workflows/release.yml`
+- Default deploy command: `bundle exec fastlane ios testflight`
+- `fastlane/Fastfile` currently provides a bootstrap lane that validates required release secrets wiring and exits successfully.
+- Actual binary signing/upload implementation will be wired when the iOS app target/project is introduced.
+
 ## Latest MVP Slice
 - AC-MVP-10: Live Activity state model + quick-action router/handler (`start_left`, `start_right`, `end_session`)
 - AC-MVP-11: Main tab navigation shell (Active Session + History) with updated visual clarity baseline
