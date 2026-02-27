@@ -23,6 +23,7 @@ final class FeedTrackerDependencies {
 }
 
 @main
+@MainActor
 struct FeedTrackerApp: App {
     private let deps = FeedTrackerDependencies()
 
