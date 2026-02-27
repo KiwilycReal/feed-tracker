@@ -16,10 +16,10 @@
 | AC-MVP-10 | Live Activity / Dynamic Island actions | PASS | `Sources/FeedTrackerCore/Features/LiveActivityState.swift`, `Sources/FeedTrackerCore/Features/FeedTrackerLiveActivityAttributes.swift`, `Sources/FeedTrackerCore/Features/LiveActivityQuickActionRouter.swift`, `Sources/FeedTrackerCore/Features/LiveActivityQuickActionHandler.swift`, `Tests/FeedTrackerCoreTests/LiveActivityQuickActionHandlerTests.swift`, `docs/live-activity-dynamic-island-manual-test.md`, `scripts/manual_live_activity_quick_actions.sh` |
 | AC-MVP-11 | Main navigation + visual quality baseline | PASS | `Sources/FeedTrackerCore/UI/FeedTrackerMainNavigationView.swift`, `Sources/FeedTrackerCore/UI/FeedTrackerVisualStyle.swift`, `Sources/FeedTrackerCore/UI/ActiveSessionView.swift`, `Sources/FeedTrackerCore/UI/HistoryListView.swift`, `Sources/FeedTrackerCore/Features/SessionPresentation.swift`, `Tests/FeedTrackerCoreTests/SessionPresentationTests.swift`, `docs/ui-review-checklist-ac-mvp-11.md` |
 | AC-MVP-12 | Local persistence durability + migration | PASS | `Sources/FeedTrackerCore/Persistence/FileFeedingSessionRepository.swift`, `docs/local-storage-migration-strategy.md`, `Tests/FeedTrackerCoreTests/FileFeedingSessionRepositoryTests.swift` |
-| AC-P1-13 | Siri shortcuts (open/start/read) | TODO | pending AppIntents implementation |
+| AC-P1-13 | Siri shortcuts (open/start/read) | PASS | `Sources/FeedTrackerCore/Features/SiriShortcutsHandler.swift`, `Sources/FeedTrackerCore/Features/FeedTrackerSiriAppIntents.swift`, `Tests/FeedTrackerCoreTests/SiriShortcutsHandlerTests.swift`, `docs/siri-shortcuts-manual-test.md`, `scripts/manual_siri_shortcuts.sh` |
 
 ## Primary Requirement Source
 - `docs/pm-prd-v1.md`
 
 ## Current Implementation Focus
-- Batch B6 targets AC-P1-13 Siri shortcuts.
+- Batch B6 delivered AC-P1-13 Siri shortcuts and AppIntents evidence.
