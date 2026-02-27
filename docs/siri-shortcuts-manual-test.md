@@ -8,7 +8,7 @@
   - `StartFeedTrackingIntent`
   - `ReadFeedTrackingStatusIntent`
   - `FeedTrackerAppShortcutsProvider`
-- App has wired `FeedTrackerSiriIntentDependency.handler` during app startup.
+- Host app startup wires `FeedTrackerSiriIntentDependency.handler` (reference implementation: `FeedTrackerSiriIntentStartupWiring` invoked from `Sources/FeedTrackerCLI/main.swift`).
 - Siri + Shortcuts permissions are granted.
 
 ## Shortcut Coverage
@@ -46,3 +46,4 @@
   - running/paused phrase generation
   - post-end start guard
   - AppIntents bridge execution coverage
+  - startup wiring registration + safe fallback when dependency is not wired

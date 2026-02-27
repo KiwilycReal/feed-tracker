@@ -102,6 +102,34 @@ final class SiriAppIntentsBridgeTests: XCTestCase {
         XCTAssertEqual(status.totalElapsed, 15, accuracy: 0.001)
     }
 
+    func testStartFeedTrackingIntentFallsBackSafelyWhenDependencyIsMissing() async throws {
+        FeedTrackerSiriIntentDependency.handler = nil
+
+        let intent = StartFeedTrackingIntent(side: .left)
+        _ = try await intent.perform()
+
+        XCTAssertNil(FeedTrackerSiriIntentDependency.handler)
+    }
+
+    func testStartupWiringRegistersSiriHandlerWithSharedEngineState() throws {
+        let clock = SiriShortcutTestClock(start: Date(timeIntervalSince1970: 180_000))
+        let engine = SessionTimerEngine(now: { clock.now })
+
+        let wired = FeedTrackerSiriIntentStartupWiring.wireHandler(
+            engine: engine,
+            defaultStartSide: .right
+        )
+
+        XCTAssertTrue(FeedTrackerSiriIntentDependency.handler === wired)
+
+        _ = try wired.startTracking()
+        clock.advance(seconds: 7)
+
+        let status = wired.readCurrentStatus()
+        XCTAssertEqual(status.activeSide, .right)
+        XCTAssertEqual(status.totalElapsed, 7, accuracy: 0.001)
+    }
+
     func testAppShortcutsProviderPublishesThreeShortcuts() {
         XCTAssertEqual(FeedTrackerAppShortcutsProvider.appShortcuts.count, 3)
     }
