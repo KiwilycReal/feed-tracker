@@ -12,26 +12,39 @@ public struct HistoryListView: View {
     }
 
     public var body: some View {
-        List(viewModel.items) { item in
-            VStack(alignment: .leading, spacing: 6) {
-                Text(item.startedAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.headline)
-                Text("Left: \(format(item.leftDuration))  Right: \(format(item.rightDuration))")
-                Text("Total: \(format(item.totalDuration))")
-                    .font(.subheadline)
-                if let note = item.note {
-                    Text(note)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+        Group {
+            if viewModel.items.isEmpty {
+                ContentUnavailableView(
+                    "No sessions yet",
+                    systemImage: "clock.badge.xmark",
+                    description: Text("Completed feeding sessions will appear here.")
+                )
+                .padding(.horizontal, 24)
+            } else {
+                List(viewModel.items) { item in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(item.startedAt.formatted(date: .abbreviated, time: .shortened))
+                            .font(.headline)
+                        Text("Left: \(format(item.leftDuration))  Right: \(format(item.rightDuration))")
+                            .font(.subheadline)
+                        Text("Total: \(format(item.totalDuration))")
+                            .font(.subheadline.weight(.semibold))
+                        if let note = item.note {
+                            Text(note)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button(role: .destructive) {
+                            pendingDeleteItem = item
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
                 }
-            }
-            .padding(.vertical, 4)
-            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                Button(role: .destructive) {
-                    pendingDeleteItem = item
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                }
+                .listStyle(.insetGrouped)
             }
         }
         .task {

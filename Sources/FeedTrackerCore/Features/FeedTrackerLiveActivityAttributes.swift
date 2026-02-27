@@ -21,9 +21,18 @@ public struct FeedTrackerLiveActivityAttributes: ActivityAttributes {
     }
 
     public let sessionID: String
+    public let startLeftActionURL: String
+    public let startRightActionURL: String
+    public let endSessionActionURL: String
 
-    public init(sessionID: UUID) {
+    public init(
+        sessionID: UUID,
+        actionRouter: any LiveActivityQuickActionRouting = LiveActivityQuickActionRouter()
+    ) {
         self.sessionID = sessionID.uuidString
+        self.startLeftActionURL = actionRouter.url(for: .startLeft).absoluteString
+        self.startRightActionURL = actionRouter.url(for: .startRight).absoluteString
+        self.endSessionActionURL = actionRouter.url(for: .endSession).absoluteString
     }
 }
 #endif

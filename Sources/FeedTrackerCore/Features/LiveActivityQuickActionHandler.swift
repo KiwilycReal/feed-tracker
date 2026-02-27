@@ -9,19 +9,23 @@ public enum LiveActivityQuickAction: String, CaseIterable, Equatable, Sendable, 
 public enum LiveActivityQuickActionError: Error, Equatable, Sendable {
     case cannotStartAfterSessionEnded
     case cannotEndWithoutStartedSession
+    case unsupportedDeepLink
 }
 
 @MainActor
 public final class LiveActivityQuickActionHandler {
     private let engine: SessionTimerEngine
     private let repository: any FeedingSessionRepository
+    private let router: any LiveActivityQuickActionRouting
 
     public init(
         engine: SessionTimerEngine,
-        repository: any FeedingSessionRepository
+        repository: any FeedingSessionRepository,
+        router: any LiveActivityQuickActionRouting = LiveActivityQuickActionRouter()
     ) {
         self.engine = engine
         self.repository = repository
+        self.router = router
     }
 
     @discardableResult
@@ -42,6 +46,15 @@ public final class LiveActivityQuickActionHandler {
                 throw LiveActivityQuickActionError.cannotEndWithoutStartedSession
             }
         }
+    }
+
+    @discardableResult
+    public func handle(url: URL, note: String? = nil) async throws -> FeedingSession? {
+        guard let action = router.action(from: url) else {
+            throw LiveActivityQuickActionError.unsupportedDeepLink
+        }
+
+        return try await handle(action, note: note)
     }
 
     public func currentState(at date: Date? = nil) -> LiveActivityState {

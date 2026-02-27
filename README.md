@@ -19,3 +19,7 @@ swift run feed-tracker-cli
 
 ## Architecture
 View -> ViewModel -> UseCase -> Repository/Service
+
+## Latest MVP Slice
+- AC-MVP-10: Live Activity state model + quick-action router/handler (`start_left`, `start_right`, `end_session`)
+- AC-MVP-11: Main tab navigation shell (Active Session + History) with updated visual clarity baseline

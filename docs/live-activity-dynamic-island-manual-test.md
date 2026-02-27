@@ -5,7 +5,13 @@
 - Build uses this branch changes including:
   - `LiveActivityQuickActionHandler`
   - `FeedTrackerLiveActivityAttributes`
+  - `LiveActivityQuickActionRouter`
 - Notifications + Live Activities permissions granted.
+
+## Quick Action Deep Links
+- Start Left: `feedtracker://live-activity?action=start_left`
+- Start Right: `feedtracker://live-activity?action=start_right`
+- End Session: `feedtracker://live-activity?action=end_session`
 
 ## Test Steps
 1. Launch app and open active session screen.
@@ -18,9 +24,15 @@
 5. Open history list.
    - Expected: latest record has non-zero total duration and reflects the final side durations.
 
+## Optional Simulator Helper
+```bash
+./scripts/manual_live_activity_quick_actions.sh
+```
+
 ## Automated Unit Evidence
 - `Tests/FeedTrackerCoreTests/LiveActivityQuickActionHandlerTests.swift`
   - start/switch/end quick actions
+  - URL deep-link routing (`handle(url:)`)
   - pause/resume quick action continuity
   - persistence write on end-session action
   - explicit post-end guard (`cannotStartAfterSessionEnded`)

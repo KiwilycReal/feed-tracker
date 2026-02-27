@@ -111,6 +111,41 @@ final class LiveActivityQuickActionHandlerTests: XCTestCase {
         _ = try await handler.handle(.endSession)
         XCTAssertEqual(handler.currentState().timerStatus, .ended)
     }
+
+    func testHandleURLParsesRouterDeepLinkAndExecutesAction() async throws {
+        let clock = QuickActionTestClock(start: Date(timeIntervalSince1970: 95_000))
+        let engine = SessionTimerEngine(now: { clock.now })
+        let repository = InMemoryFeedingSessionRepository()
+        let router = LiveActivityQuickActionRouter()
+        let handler = LiveActivityQuickActionHandler(engine: engine, repository: repository, router: router)
+
+        try await handler.handle(url: router.url(for: .startRight))
+
+        let state = handler.currentState()
+        XCTAssertEqual(state.activeSide, .right)
+        XCTAssertEqual(state.timerStatus, .running)
+    }
+
+    func testHandleURLThrowsForUnknownLink() async throws {
+        let clock = QuickActionTestClock(start: Date(timeIntervalSince1970: 96_000))
+        let engine = SessionTimerEngine(now: { clock.now })
+        let repository = InMemoryFeedingSessionRepository()
+        let handler = LiveActivityQuickActionHandler(engine: engine, repository: repository)
+
+        let unknown = URL(string: "feedtracker://live-activity?action=do_nothing")!
+        await XCTAssertThrowsErrorAsync(try await handler.handle(url: unknown)) { error in
+            XCTAssertEqual(error as? LiveActivityQuickActionError, .unsupportedDeepLink)
+        }
+    }
+
+    func testRouterBuildsRoundTripURLsForAllActions() {
+        let router = LiveActivityQuickActionRouter()
+
+        for action in LiveActivityQuickAction.allCases {
+            let url = router.url(for: action)
+            XCTAssertEqual(router.action(from: url), action)
+        }
+    }
 }
 
 private final class QuickActionTestClock {
