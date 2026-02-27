@@ -1,0 +1,13 @@
+included:
+  - Sources
+  - Tests
+
+excluded:
+  - .build
+
+disabled_rules:
+  - force_unwrapping
+
+line_length:
+  warning: 180
+  error: 240

@@ -1,0 +1,46 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to release (branch/tag)
+        required: false
+        default: main
+        type: string
+      deploy_command:
+        description: Optional deploy command override
+        required: false
+        default: bundle exec fastlane ios testflight
+        type: string
+
+concurrency:
+  group: release-${{ github.event.inputs.ref || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  lint:
+    uses: ./.github/workflows/_tool_lint.yml
+    with:
+      checkout_ref: ${{ github.event.inputs.ref || 'main' }}
+
+  test:
+    uses: ./.github/workflows/_tool_test.yml
+    with:
+      checkout_ref: ${{ github.event.inputs.ref || 'main' }}
+
+  build:
+    needs: [lint, test]
+    uses: ./.github/workflows/_tool_build.yml
+    with:
+      checkout_ref: ${{ github.event.inputs.ref || 'main' }}
+
+  deploy:
+    name: deploy
+    needs: [lint, test, build]
+    uses: ./.github/workflows/_tool_deploy.yml
+    with:
+      checkout_ref: ${{ github.event.inputs.ref || 'main' }}
+      environment_name: prod
+      deploy_command: ${{ github.event.inputs.deploy_command || 'bundle exec fastlane ios testflight' }}
+    secrets: inherit

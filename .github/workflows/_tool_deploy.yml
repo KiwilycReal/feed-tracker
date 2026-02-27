@@ -1,0 +1,59 @@
+name: Tool - Deploy TestFlight
+
+on:
+  workflow_call:
+    inputs:
+      checkout_ref:
+        description: Git ref to checkout
+        required: false
+        type: string
+      environment_name:
+        description: Environment name that holds deploy secrets
+        required: false
+        default: prod
+        type: string
+      deploy_command:
+        description: Command used to deploy to TestFlight
+        required: false
+        default: bundle exec fastlane ios testflight
+        type: string
+
+jobs:
+  deploy:
+    name: deploy-testflight
+    runs-on: macos-14
+    timeout-minutes: 30
+    environment: ${{ inputs.environment_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout_ref || github.ref }}
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+
+      - name: Validate deploy prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f "fastlane/Fastfile" ]; then
+            echo "::error::fastlane/Fastfile not found. Configure fastlane lanes before release deploy."
+            exit 1
+          fi
+
+      - name: Deploy to TestFlight
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          FASTLANE_SESSION: ${{ secrets.FASTLANE_SESSION }}
+        run: ${{ inputs.deploy_command }}

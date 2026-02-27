@@ -1,0 +1,22 @@
+name: Tool - Test
+
+on:
+  workflow_call:
+    inputs:
+      checkout_ref:
+        required: false
+        type: string
+
+jobs:
+  test:
+    name: swift-test
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout_ref || github.ref }}
+
+      - name: Swift test
+        run: swift test --parallel --enable-code-coverage
