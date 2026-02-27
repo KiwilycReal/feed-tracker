@@ -21,7 +21,7 @@ on:
 jobs:
   deploy:
     name: deploy-testflight
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 30
     environment: ${{ inputs.environment_name }}
     steps:
@@ -29,6 +29,15 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.checkout_ref || github.ref }}
+
+      - name: Select latest Xcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest_xcode="$(ls -1d /Applications/Xcode*.app | sort -V | tail -n 1)"
+          echo "Selecting ${latest_xcode}"
+          sudo xcode-select -s "${latest_xcode}/Contents/Developer"
+          xcodebuild -version
 
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
@@ -44,6 +53,25 @@ jobs:
             echo "::error::fastlane/Fastfile not found. Configure fastlane lanes before release deploy."
             exit 1
           fi
+
+      - name: Select latest Xcode available
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest=""
+          if compgen -G "/Applications/Xcode_*.app" > /dev/null; then
+            latest=$(ls -1d /Applications/Xcode_*.app | sort -V | tail -n1)
+          elif [ -d "/Applications/Xcode.app" ]; then
+            latest="/Applications/Xcode.app"
+          fi
+
+          if [ -z "$latest" ]; then
+            echo "::error::No Xcode installation found on runner"
+            exit 1
+          fi
+
+          sudo xcode-select -s "$latest/Contents/Developer"
+          xcodebuild -version
 
       - name: Deploy to TestFlight
         env:

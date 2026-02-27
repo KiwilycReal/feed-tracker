@@ -3,10 +3,11 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1A3BB82088B2BFF723EC808B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F4532E3D088626DD0EA45544 /* Assets.xcassets */; };
 		598B5D6383097635CA98E872 /* FeedTrackerCore in Frameworks */ = {isa = PBXBuildFile; productRef = 79E95D4386CB2739694997BF /* FeedTrackerCore */; };
 		5AF8DF3EAC645D4EB0C58887 /* FeedTrackerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04E38D7276AA77212BE91AA3 /* FeedTrackerApp.swift */; };
 /* End PBXBuildFile section */
@@ -15,6 +16,7 @@
 		04E38D7276AA77212BE91AA3 /* FeedTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedTrackerApp.swift; sourceTree = "<group>"; };
 		0D25A00D10CEAA8833BE6C8A /* FeedTracker.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FeedTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0F568BCADE1EBB396D967108 /* feed-tracker */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "feed-tracker"; path = .; sourceTree = SOURCE_ROOT; };
+		F4532E3D088626DD0EA45544 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -49,6 +51,7 @@
 		E291A974B52027C7F4536156 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				F4532E3D088626DD0EA45544 /* Assets.xcassets */,
 				04E38D7276AA77212BE91AA3 /* FeedTrackerApp.swift */,
 			);
 			path = App;
@@ -70,6 +73,7 @@
 			buildConfigurationList = 72F06A9EAE1ECEC0A158E6D3 /* Build configuration list for PBXNativeTarget "FeedTracker" */;
 			buildPhases = (
 				59CD91EA8FC66FB80B6C9CDE /* Sources */,
+				5AF7F4332CA4D1A87D9D9526 /* Resources */,
 				09FA4B42C1C8582EE09494E8 /* Frameworks */,
 			);
 			buildRules = (
@@ -111,7 +115,7 @@
 			packageReferences = (
 				F150082E4B67549342F80D2B /* XCLocalSwiftPackageReference "." */,
 			);
-			preferredProjectObjectVersion = 56;
+			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -119,6 +123,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		5AF7F4332CA4D1A87D9D9526 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1A3BB82088B2BFF723EC808B /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		59CD91EA8FC66FB80B6C9CDE /* Sources */ = {
@@ -259,8 +274,11 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -282,8 +300,11 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
