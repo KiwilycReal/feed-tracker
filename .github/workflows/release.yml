@@ -7,10 +7,12 @@ on:
         description: Git ref to release (branch/tag)
         required: false
         default: main
+        type: string
       deploy_command:
         description: Optional deploy command override
         required: false
         default: bundle exec fastlane ios testflight
+        type: string
 
 env:
   RELEASE_REF: ${{ github.event.inputs.ref || 'main' }}
