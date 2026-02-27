@@ -10,31 +10,31 @@ Deliver the first end-to-end MVP functional slice: deterministic timer engine + 
 - AC-MVP-08
 
 ## Implementation Checklist
-- [ ] Define `FeedingSession` aggregate model (left/right elapsed, total elapsed, status, timestamps).
-- [ ] Implement `SessionTimerEngine` state machine:
+- [x] Define `FeedingSession` aggregate model (left/right elapsed, total elapsed, status, timestamps).
+- [x] Implement `SessionTimerEngine` state machine:
   - start(left|right)
   - switch(left|right)
   - pause
   - resume
   - stopCurrentSide
   - endSession
-- [ ] Add guardrails for invalid transitions (e.g., resume without paused state).
-- [ ] Create Active Session view model + UI binding to timer engine.
-- [ ] Build History list view model + list rendering from repository.
-- [ ] Build Edit Session flow (load, mutate side durations, save).
-- [ ] Persist edited values and verify after app restart.
-- [ ] Add deterministic unit tests for transition graph and elapsed calculations.
-- [ ] Add integration tests for History+Edit persistence roundtrip.
+- [x] Add guardrails for invalid transitions (e.g., resume without paused state).
+- [x] Create Active Session view model + UI binding to timer engine.
+- [x] Build History list view model + list rendering from repository.
+- [x] Build Edit Session flow (load, mutate side durations, save).
+- [x] Persist edited values and verify after app restart.
+- [x] Add deterministic unit tests for transition graph and elapsed calculations.
+- [x] Add integration tests for History+Edit persistence roundtrip.
 
 ## Mandatory PR Evidence Table
 Use this exact rows in PR description:
 
 | AC ID | Status (PASS/FAIL/BLOCKED) | Evidence Link | Note |
 |---|---|---|---|
-| AC-MVP-05 |  |  |  |
-| AC-MVP-06 |  |  |  |
-| AC-MVP-07 |  |  |  |
-| AC-MVP-08 |  |  |  |
+| AC-MVP-05 | PASS | `Sources/FeedTrackerCore/Session/SessionTimerEngine.swift`, `Tests/FeedTrackerCoreTests/SessionTimerEngineTests.swift` | Deterministic transition coverage: start/switch/pause/resume/stop/end + invalid transitions |
+| AC-MVP-06 | PASS | `Sources/FeedTrackerCore/Features/ActiveSessionViewModel.swift`, `Sources/FeedTrackerCore/UI/ActiveSessionView.swift`, `Tests/FeedTrackerCoreTests/ActiveSessionViewModelTests.swift` | Active side + inactive accumulations + total elapsed live refresh model |
+| AC-MVP-07 | PASS | `Sources/FeedTrackerCore/Persistence/FeedingSessionRepository.swift`, `Sources/FeedTrackerCore/Features/HistoryListViewModel.swift`, `Sources/FeedTrackerCore/UI/HistoryListView.swift`, `Tests/FeedTrackerCoreTests/HistoryAndEditIntegrationTests.swift` | Completed-session history list with key metrics (left/right/total/timestamp/note) |
+| AC-MVP-08 | PASS | `Sources/FeedTrackerCore/Session/FeedingSession.swift`, `Sources/FeedTrackerCore/Features/EditSessionViewModel.swift`, `Tests/FeedTrackerCoreTests/HistoryAndEditIntegrationTests.swift` | Edit flow saves and re-reads persisted durations/notes safely |
 
 ## Quality Gates (must all pass)
 - Build/compile passes
