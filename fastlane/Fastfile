@@ -57,10 +57,14 @@ platform :ios do
       lock_when_sleeps: true
     )
 
+    match_readonly = ENV.fetch("MATCH_READONLY", "true").strip.downcase == "true"
+
+    UI.message("Using match readonly=#{match_readonly}")
+
     match(
       type: "appstore",
       app_identifier: [bundle_id],
-      readonly: true,
+      readonly: match_readonly,
       git_url: match_git_url,
       api_key: api_key,
       git_basic_authorization: ENV["MATCH_GIT_BASIC_AUTHORIZATION"],
