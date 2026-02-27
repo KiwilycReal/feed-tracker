@@ -5,8 +5,13 @@ Provide deterministic local schema migration for feed persistence across app upg
 
 ## Versioning Model
 - Storage uses monotonically increasing integer versions (`StorageVersion`).
-- Current version is loaded via `StorageVersionReading.currentVersion()`.
-- Successful step completion persists version via `StorageVersionWriting.setCurrentVersion(_:)`.
+- Feeding-session persistence file (`feeding-sessions.json`) uses a versioned envelope:
+  - `schemaVersion`: integer
+  - `sessions`: array of `FeedingSession`
+- Current persisted schema version is **v2** (`FileFeedingSessionRepository.currentSchemaVersion`).
+- Legacy payloads are auto-migrated on repository bootstrap:
+  - legacy raw array payload (`[FeedingSession]`) -> v2 envelope
+  - v1 envelope payload (`schemaVersion = 1`) -> v2 envelope
 
 ## Migration Execution Rules
 - Migrations are forward-only.
@@ -21,9 +26,10 @@ Each `StorageMigrationStep` must:
 - be safe to retry after interruption
 
 ## Rollout Pattern
-1. App boots and detects current storage version.
-2. `StorageMigrator` executes required steps up to app target version.
-3. On migration error, app switches to safe mode and emits diagnostics.
+1. App boots and initializes `FileFeedingSessionRepository` with `feeding-sessions.json`.
+2. Repository decodes current payload and evaluates `schemaVersion`.
+3. If payload is legacy (`[FeedingSession]`) or v1 envelope, repository migrates to v2 and rewrites atomically.
+4. On migration error, app switches to safe mode and emits diagnostics.
 
 ## Diagnostics
 - Emit migration start/end with target versions.

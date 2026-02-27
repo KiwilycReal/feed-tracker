@@ -1,11 +1,11 @@
 import Foundation
 
-public enum FeedingSide: String, CaseIterable, Equatable, Sendable {
+public enum FeedingSide: String, CaseIterable, Equatable, Sendable, Codable {
     case left
     case right
 }
 
-public enum FeedingSessionStatus: String, Equatable, Sendable {
+public enum FeedingSessionStatus: String, Equatable, Sendable, Codable {
     case active
     case paused
     case stopped
@@ -16,7 +16,7 @@ public enum FeedingSessionValidationError: Error, Equatable, Sendable {
     case negativeDuration
 }
 
-public struct FeedingSession: Identifiable, Equatable, Sendable {
+public struct FeedingSession: Identifiable, Equatable, Sendable, Codable {
     public let id: UUID
     public let startedAt: Date
     public let endedAt: Date?

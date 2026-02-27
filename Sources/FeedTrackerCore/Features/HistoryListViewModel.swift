@@ -37,4 +37,9 @@ public final class HistoryListViewModel: ObservableObject {
             .filter { $0.status == .completed }
             .map(HistorySessionListItem.init(session:))
     }
+
+    public func deleteSession(id: UUID) async throws {
+        try await repository.remove(id: id)
+        try await reload()
+    }
 }

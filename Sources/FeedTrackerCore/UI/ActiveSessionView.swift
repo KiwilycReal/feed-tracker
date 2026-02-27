@@ -1,4 +1,4 @@
-#if canImport(SwiftUI)
+#if canImport(SwiftUI) && (os(iOS) || os(watchOS))
 import SwiftUI
 
 @MainActor
