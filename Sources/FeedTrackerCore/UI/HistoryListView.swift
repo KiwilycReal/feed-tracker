@@ -12,41 +12,28 @@ public struct HistoryListView: View {
     }
 
     public var body: some View {
-        Group {
+        List {
             if viewModel.items.isEmpty {
-                ContentUnavailableView(
-                    "No sessions yet",
-                    systemImage: "clock.badge.xmark",
-                    description: Text("Completed feeding sessions will appear here.")
-                )
-                .padding(.horizontal, 24)
+                emptyStateView
+                    .listRowBackground(FeedTrackerPalette.pageBackground)
             } else {
-                List(viewModel.items) { item in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(item.startedAt.formatted(date: .abbreviated, time: .shortened))
-                            .font(.headline)
-                        Text("Left: \(format(item.leftDuration))  Right: \(format(item.rightDuration))")
-                            .font(.subheadline)
-                        Text("Total: \(format(item.totalDuration))")
-                            .font(.subheadline.weight(.semibold))
-                        if let note = item.note {
-                            Text(note)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
+                ForEach(viewModel.items) { item in
+                    HistoryRow(item: item)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                        .listRowBackground(FeedTrackerPalette.pageBackground)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                pendingDeleteItem = item
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
                         }
-                    }
-                    .padding(.vertical, 4)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            pendingDeleteItem = item
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    }
                 }
-                .listStyle(.insetGrouped)
             }
         }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(FeedTrackerPalette.pageBackground)
         .task {
             try? await viewModel.reload()
         }
@@ -73,6 +60,23 @@ public struct HistoryListView: View {
         } message: {
             Text(deleteErrorMessage ?? "Unknown error")
         }
+    }
+
+    private var emptyStateView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "heart.text.square")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundStyle(FeedTrackerPalette.accent)
+            Text("No sessions yet")
+                .font(.headline)
+                .foregroundStyle(FeedTrackerPalette.primaryText)
+            Text("Complete a feeding session and it will appear here.")
+                .font(.subheadline)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(FeedTrackerPalette.secondaryText)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
     }
 
     private var deleteConfirmationBinding: Binding<Bool> {
@@ -106,12 +110,47 @@ public struct HistoryListView: View {
             deleteErrorMessage = error.localizedDescription
         }
     }
+}
 
-    private func format(_ value: TimeInterval) -> String {
-        let rounded = Int(value.rounded())
-        let minutes = rounded / 60
-        let seconds = rounded % 60
-        return String(format: "%02d:%02d", minutes, seconds)
+private struct HistoryRow: View {
+    let item: HistorySessionListItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(item.startedAt.formatted(date: .abbreviated, time: .shortened))
+                    .font(.headline)
+                    .foregroundStyle(FeedTrackerPalette.primaryText)
+                Spacer()
+                Text(SessionPresentation.durationText(item.totalDuration))
+                    .font(.system(.body, design: .rounded).monospacedDigit().weight(.semibold))
+                    .foregroundStyle(FeedTrackerPalette.accent)
+            }
+
+            HStack(spacing: 12) {
+                durationChip(title: "Left", value: item.leftDuration, color: FeedTrackerPalette.leftSide)
+                durationChip(title: "Right", value: item.rightDuration, color: FeedTrackerPalette.rightSide)
+            }
+
+            if let note = item.note, !note.isEmpty {
+                Text(note)
+                    .font(.footnote)
+                    .foregroundStyle(FeedTrackerPalette.secondaryText)
+                    .padding(.top, 2)
+            }
+        }
+        .feedTrackerCardStyle()
+    }
+
+    private func durationChip(title: String, value: TimeInterval, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+            Text("\(title): \(SessionPresentation.durationText(value))")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(FeedTrackerPalette.primaryText)
+        }
     }
 }
 #endif

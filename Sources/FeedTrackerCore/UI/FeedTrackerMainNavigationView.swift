@@ -19,6 +19,7 @@ public struct FeedTrackerMainNavigationView: View {
             NavigationStack {
                 ActiveSessionView(viewModel: activeSessionViewModel)
                     .navigationTitle("Active Session")
+                    .navigationBarTitleDisplayMode(.inline)
             }
             .tabItem {
                 Label("Active", systemImage: "heart.text.square.fill")
@@ -27,12 +28,13 @@ public struct FeedTrackerMainNavigationView: View {
             NavigationStack {
                 HistoryListView(viewModel: historyViewModel)
                     .navigationTitle("History")
+                    .navigationBarTitleDisplayMode(.inline)
             }
             .tabItem {
                 Label("History", systemImage: "clock.arrow.circlepath")
             }
         }
-        .tint(Color(red: 0.94, green: 0.35, blue: 0.62))
+        .tint(FeedTrackerPalette.accent)
     }
 }
 #endif

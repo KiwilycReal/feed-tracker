@@ -13,66 +13,15 @@ public struct ActiveSessionView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            statusBadge
-
-            VStack(spacing: 10) {
-                metricRow(title: "Left", value: format(viewModel.displayState.leftElapsed))
-                metricRow(title: "Right", value: format(viewModel.displayState.rightElapsed))
-                metricRow(title: "Total", value: format(viewModel.displayState.totalElapsed), emphasize: true)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                statusCard
+                metricsCard
+                actionsCard
             }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.pink.opacity(0.08))
-            )
-
-            VStack(spacing: 8) {
-                HStack(spacing: 8) {
-                    Button("Start Left") {
-                        activate(side: .left)
-                    }
-                    .buttonStyle(.borderedProminent)
-
-                    Button("Start Right") {
-                        activate(side: .right)
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-
-                HStack(spacing: 8) {
-                    Button("Pause") {
-                        do {
-                            try viewModel.pause()
-                        } catch {
-                            actionErrorMessage = error.localizedDescription
-                        }
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button("Resume") {
-                        do {
-                            try viewModel.resume()
-                        } catch {
-                            actionErrorMessage = error.localizedDescription
-                        }
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button("End Session") {
-                        Task {
-                            do {
-                                _ = try await viewModel.endSession()
-                            } catch {
-                                actionErrorMessage = error.localizedDescription
-                            }
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                }
-            }
+            .padding(16)
         }
-        .padding(16)
+        .background(FeedTrackerPalette.pageBackground.ignoresSafeArea())
         .onReceive(
             Timer.publish(every: refreshEvery, on: .main, in: .common).autoconnect()
         ) { _ in
@@ -87,40 +36,152 @@ public struct ActiveSessionView: View {
         }
     }
 
-    private var statusBadge: some View {
-        HStack(spacing: 6) {
+    private var statusCard: some View {
+        HStack(alignment: .top, spacing: 12) {
             Circle()
                 .fill(statusColor)
-                .frame(width: 10, height: 10)
-            Text("Status: \(stateLabel)")
-                .font(.subheadline.weight(.semibold))
+                .frame(width: 12, height: 12)
+                .padding(.top, 6)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(SessionPresentation.statusTitle(for: viewModel.displayState.state))
+                    .font(.headline)
+                    .foregroundStyle(FeedTrackerPalette.primaryText)
+                Text(SessionPresentation.statusSubtitle(for: viewModel.displayState.state))
+                    .font(.subheadline)
+                    .foregroundStyle(FeedTrackerPalette.secondaryText)
+            }
         }
+        .feedTrackerCardStyle()
+    }
+
+    private var metricsCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Current Session")
+                .font(.headline)
+                .foregroundStyle(FeedTrackerPalette.primaryText)
+
+            VStack(spacing: 8) {
+                metricRow(title: "Left", value: SessionPresentation.durationText(viewModel.displayState.leftElapsed), tint: FeedTrackerPalette.leftSide)
+                metricRow(title: "Right", value: SessionPresentation.durationText(viewModel.displayState.rightElapsed), tint: FeedTrackerPalette.rightSide)
+                metricRow(title: "Total", value: SessionPresentation.durationText(viewModel.displayState.totalElapsed), tint: FeedTrackerPalette.accent)
+            }
+        }
+        .feedTrackerCardStyle()
+    }
+
+    private var actionsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Quick Actions")
+                .font(.headline)
+                .foregroundStyle(FeedTrackerPalette.primaryText)
+
+            HStack(spacing: 10) {
+                actionButton(title: "Left", systemImage: "l.circle.fill", tint: FeedTrackerPalette.leftSide) {
+                    handleSideSelection(.left)
+                }
+
+                actionButton(title: "Right", systemImage: "r.circle.fill", tint: FeedTrackerPalette.rightSide) {
+                    handleSideSelection(.right)
+                }
+            }
+
+            HStack(spacing: 10) {
+                if isPaused {
+                    actionButton(title: "Resume", systemImage: "play.fill", tint: FeedTrackerPalette.success) {
+                        do {
+                            try viewModel.resume()
+                        } catch {
+                            present(error)
+                        }
+                    }
+                } else {
+                    actionButton(title: "Pause", systemImage: "pause.fill", tint: FeedTrackerPalette.secondaryText) {
+                        do {
+                            try viewModel.pause()
+                        } catch {
+                            present(error)
+                        }
+                    }
+                    .disabled(!isRunning)
+                }
+
+                actionButton(title: "End", systemImage: "stop.fill", tint: .red) {
+                    Task {
+                        do {
+                            _ = try await viewModel.endSession()
+                        } catch {
+                            present(error)
+                        }
+                    }
+                }
+                .disabled(!canEndSession)
+            }
+        }
+        .feedTrackerCardStyle()
     }
 
     private var statusColor: Color {
         switch viewModel.displayState.state {
+        case .idle:
+            FeedTrackerPalette.secondaryText
         case .running:
-            return .green
+            FeedTrackerPalette.success
         case .paused:
-            return .orange
-        case .stopped, .idle, .ended:
-            return .gray
+            FeedTrackerPalette.rightSide
+        case .stopped:
+            FeedTrackerPalette.leftSide
+        case .ended:
+            FeedTrackerPalette.accent
         }
     }
 
-    private var stateLabel: String {
-        switch viewModel.displayState.state {
-        case .running(let side):
-            return "Running (\(side.rawValue.capitalized))"
-        case .paused(let side):
-            return "Paused (\(side.rawValue.capitalized))"
-        case .stopped:
-            return "Stopped"
-        case .ended:
-            return "Ended"
-        case .idle:
-            return "Idle"
+    private var isRunning: Bool {
+        if case .running = viewModel.displayState.state {
+            return true
         }
+        return false
+    }
+
+    private var isPaused: Bool {
+        if case .paused = viewModel.displayState.state {
+            return true
+        }
+        return false
+    }
+
+    private var canEndSession: Bool {
+        switch viewModel.displayState.state {
+        case .idle, .ended:
+            false
+        case .running, .paused, .stopped:
+            true
+        }
+    }
+
+    private func handleSideSelection(_ side: FeedingSide) {
+        do {
+            switch viewModel.displayState.state {
+            case .idle, .stopped:
+                try viewModel.start(side: side)
+            case .running(let activeSide):
+                guard activeSide != side else { return }
+                try viewModel.switchSide(to: side)
+            case .paused(let pausedSide):
+                try viewModel.resume()
+                if pausedSide != side {
+                    try viewModel.switchSide(to: side)
+                }
+            case .ended:
+                actionErrorMessage = "Session already ended. Start a new session from app root."
+            }
+        } catch {
+            present(error)
+        }
+    }
+
+    private func present(_ error: Error) {
+        actionErrorMessage = (error as NSError).localizedDescription
     }
 
     private var actionErrorBinding: Binding<Bool> {
@@ -134,43 +195,28 @@ public struct ActiveSessionView: View {
         )
     }
 
-    private func metricRow(title: String, value: String, emphasize: Bool = false) -> some View {
+    private func metricRow(title: String, value: String, tint: Color) -> some View {
         HStack {
-            Text(title)
+            Label(title, systemImage: "timer")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(FeedTrackerPalette.secondaryText)
             Spacer()
             Text(value)
-                .font(emphasize ? .title3.weight(.bold) : .headline)
-                .monospacedDigit()
+                .font(.system(.title3, design: .rounded).monospacedDigit().weight(.semibold))
+                .foregroundStyle(tint)
         }
+        .padding(.vertical, 4)
     }
 
-    private func activate(side: FeedingSide) {
-        do {
-            switch viewModel.displayState.state {
-            case .idle, .stopped:
-                try viewModel.start(side: side)
-            case .running(let activeSide):
-                guard activeSide != side else { return }
-                try viewModel.switchSide(to: side)
-            case .paused(let pausedSide):
-                try viewModel.resume()
-                guard pausedSide != side else { return }
-                try viewModel.switchSide(to: side)
-            case .ended:
-                actionErrorMessage = "Session already ended. Start a new session from app root."
-            }
-        } catch {
-            actionErrorMessage = error.localizedDescription
+    private func actionButton(title: String, systemImage: String, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
         }
-    }
-
-    private func format(_ value: TimeInterval) -> String {
-        let rounded = Int(value.rounded())
-        let minutes = rounded / 60
-        let seconds = rounded % 60
-        return String(format: "%02d:%02d", minutes, seconds)
+        .buttonStyle(.borderedProminent)
+        .tint(tint)
     }
 }
 #endif
