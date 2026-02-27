@@ -1,0 +1,40 @@
+import Combine
+import Foundation
+
+public struct HistorySessionListItem: Identifiable, Equatable, Sendable {
+    public let id: UUID
+    public let startedAt: Date
+    public let endedAt: Date?
+    public let leftDuration: TimeInterval
+    public let rightDuration: TimeInterval
+    public let totalDuration: TimeInterval
+    public let note: String?
+
+    init(session: FeedingSession) {
+        self.id = session.id
+        self.startedAt = session.startedAt
+        self.endedAt = session.endedAt
+        self.leftDuration = session.leftDuration
+        self.rightDuration = session.rightDuration
+        self.totalDuration = session.totalDuration
+        self.note = session.note
+    }
+}
+
+@MainActor
+public final class HistoryListViewModel: ObservableObject {
+    private let repository: any FeedingSessionRepository
+
+    @Published public private(set) var items: [HistorySessionListItem] = []
+
+    public init(repository: any FeedingSessionRepository) {
+        self.repository = repository
+    }
+
+    public func reload() async throws {
+        let sessions = try await repository.fetchAll()
+        items = sessions
+            .filter { $0.status == .completed }
+            .map(HistorySessionListItem.init(session:))
+    }
+}
