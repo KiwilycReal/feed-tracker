@@ -1,0 +1,99 @@
+name: iOS Bootstrap CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "feat/**"
+      - "fix/**"
+      - "chore/**"
+      - "ci/**"
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Lint (placeholder)
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Swift lint bootstrap check
+        shell: bash
+        run: |
+          set -euo pipefail
+          if find . -name "*.swift" | grep -q .; then
+            if command -v swiftlint >/dev/null 2>&1; then
+              swiftlint lint --strict
+            else
+              echo "::notice::Swift files found, but swiftlint is not configured yet. Placeholder pass."
+            fi
+          else
+            echo "::notice::No Swift files yet. Lint placeholder pass."
+          fi
+
+  build:
+    name: Build (placeholder)
+    runs-on: macos-14
+    needs: lint
+    env:
+      CI_XCODE_WORKSPACE: ${{ vars.CI_XCODE_WORKSPACE }}
+      CI_XCODE_PROJECT: ${{ vars.CI_XCODE_PROJECT }}
+      CI_XCODE_SCHEME: ${{ vars.CI_XCODE_SCHEME }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: iOS build bootstrap check
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${CI_XCODE_SCHEME:-}" ]; then
+            echo "::notice::CI_XCODE_SCHEME is not set yet. Build placeholder pass."
+            exit 0
+          fi
+
+          if [ -n "${CI_XCODE_WORKSPACE:-}" ]; then
+            xcodebuild -workspace "$CI_XCODE_WORKSPACE" -scheme "$CI_XCODE_SCHEME" -configuration Debug -destination "generic/platform=iOS" build
+          elif [ -n "${CI_XCODE_PROJECT:-}" ]; then
+            xcodebuild -project "$CI_XCODE_PROJECT" -scheme "$CI_XCODE_SCHEME" -configuration Debug -destination "generic/platform=iOS" build
+          else
+            echo "::warning::Set CI_XCODE_WORKSPACE or CI_XCODE_PROJECT in repository variables."
+            echo "::notice::Build placeholder pass in bootstrap stage."
+            exit 0
+          fi
+
+  test:
+    name: Test (placeholder)
+    runs-on: macos-14
+    needs: build
+    env:
+      CI_XCODE_WORKSPACE: ${{ vars.CI_XCODE_WORKSPACE }}
+      CI_XCODE_PROJECT: ${{ vars.CI_XCODE_PROJECT }}
+      CI_XCODE_SCHEME: ${{ vars.CI_XCODE_SCHEME }}
+      CI_IOS_DESTINATION: ${{ vars.CI_IOS_DESTINATION }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: iOS test bootstrap check
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${CI_XCODE_SCHEME:-}" ]; then
+            echo "::notice::CI_XCODE_SCHEME is not set yet. Test placeholder pass."
+            exit 0
+          fi
+
+          DESTINATION="${CI_IOS_DESTINATION:-platform=iOS Simulator,name=iPhone 15}"
+
+          if [ -n "${CI_XCODE_WORKSPACE:-}" ]; then
+            xcodebuild -workspace "$CI_XCODE_WORKSPACE" -scheme "$CI_XCODE_SCHEME" -destination "$DESTINATION" test
+          elif [ -n "${CI_XCODE_PROJECT:-}" ]; then
+            xcodebuild -project "$CI_XCODE_PROJECT" -scheme "$CI_XCODE_SCHEME" -destination "$DESTINATION" test
+          else
+            echo "::warning::Set CI_XCODE_WORKSPACE or CI_XCODE_PROJECT in repository variables."
+            echo "::notice::Test placeholder pass in bootstrap stage."
+            exit 0
+          fi
