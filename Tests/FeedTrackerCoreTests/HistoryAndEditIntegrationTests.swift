@@ -60,4 +60,42 @@ final class HistoryAndEditIntegrationTests: XCTestCase {
         XCTAssertEqual(persisted?.rightDuration, 55)
         XCTAssertEqual(persisted?.note, "updated after doctor advice")
     }
+
+    func testDeleteFlowRemovesSessionAndRefreshesHistoryList() async throws {
+        let keepID = UUID(uuidString: "00000000-0000-0000-0000-0000000000C3")!
+        let removeID = UUID(uuidString: "00000000-0000-0000-0000-0000000000C4")!
+
+        let repository = InMemoryFeedingSessionRepository(initialSessions: [
+            try FeedingSession(
+                id: keepID,
+                startedAt: Date(timeIntervalSince1970: 800),
+                endedAt: Date(timeIntervalSince1970: 900),
+                leftDuration: 40,
+                rightDuration: 60,
+                note: "keep me",
+                status: .completed
+            ),
+            try FeedingSession(
+                id: removeID,
+                startedAt: Date(timeIntervalSince1970: 950),
+                endedAt: Date(timeIntervalSince1970: 1020),
+                leftDuration: 35,
+                rightDuration: 35,
+                note: "delete me",
+                status: .completed
+            )
+        ])
+
+        let historyViewModel = HistoryListViewModel(repository: repository)
+        try await historyViewModel.reload()
+        XCTAssertEqual(historyViewModel.items.map(\.id), [removeID, keepID])
+
+        try await historyViewModel.deleteSession(id: removeID)
+
+        XCTAssertEqual(historyViewModel.items.count, 1)
+        XCTAssertEqual(historyViewModel.items.first?.id, keepID)
+
+        let removedSession = try await repository.fetch(id: removeID)
+        XCTAssertNil(removedSession)
+    }
 }
