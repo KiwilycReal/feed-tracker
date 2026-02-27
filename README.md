@@ -5,7 +5,7 @@ Autopilot bootstrap for MVP delivery.
 ## Current Scaffold
 - `FeedTrackerCore` Swift package module for shared iOS/watchOS logic
 - `feed-tracker-cli` executable target for bootstrap smoke validation
-- `FeedTrackerApp.xcodeproj` minimal iOS app target for TestFlight pipeline wiring
+- `FeedTracker.xcodeproj` minimal iOS app target for TestFlight pipeline wiring
 - Core baseline contracts for:
   - runtime config loading
   - auth session/token boundaries
@@ -18,13 +18,12 @@ swift test
 swift run feed-tracker-cli
 
 # list iOS project targets/schemes
-xcodebuild -list -project FeedTrackerApp.xcodeproj
+xcodebuild -list -project FeedTracker.xcodeproj
 
 # local simulator build smoke test
-xcodebuild -project FeedTrackerApp.xcodeproj \
-  -scheme FeedTrackerApp \
-  -destination 'generic/platform=iOS Simulator' \
-  CODE_SIGNING_ALLOWED=NO \
+xcodebuild -project FeedTracker.xcodeproj \
+  -scheme FeedTracker \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
   build
 ```
 
@@ -35,9 +34,9 @@ View -> ViewModel -> UseCase -> Repository/Service
 - GitHub Action: `.github/workflows/release.yml`
 - Default deploy command: `bundle exec fastlane ios testflight`
 - iOS project/scheme used by release lane:
-  - `CI_XCODE_PROJECT=FeedTrackerApp.xcodeproj`
-  - `CI_XCODE_SCHEME=FeedTrackerApp`
-  - `CI_APP_IDENTIFIER=go.kiwilyc.feed-tracker` (change to your own production bundle id if needed)
+  - `CI_XCODE_PROJECT=FeedTracker.xcodeproj`
+  - `CI_XCODE_SCHEME=FeedTracker`
+  - `CI_APP_IDENTIFIER=com.kiwilyc.feedtracker` (可按你的正式 bundle id 调整)
 
 ## Latest MVP Slice
 - AC-MVP-10: Live Activity state model + quick-action router/handler (`start_left`, `start_right`, `end_session`)
