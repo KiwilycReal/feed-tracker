@@ -13,8 +13,8 @@
 | AC-MVP-07 | History list | PASS | `Sources/FeedTrackerCore/Persistence/FeedingSessionRepository.swift`, `Sources/FeedTrackerCore/Features/HistoryListViewModel.swift`, `Sources/FeedTrackerCore/UI/HistoryListView.swift`, `Tests/FeedTrackerCoreTests/HistoryAndEditIntegrationTests.swift` |
 | AC-MVP-08 | Edit historical session | PASS | `Sources/FeedTrackerCore/Session/FeedingSession.swift`, `Sources/FeedTrackerCore/Features/EditSessionViewModel.swift`, `Tests/FeedTrackerCoreTests/HistoryAndEditIntegrationTests.swift` |
 | AC-MVP-09 | Delete historical session | PASS | `Sources/FeedTrackerCore/Features/HistoryListViewModel.swift`, `Sources/FeedTrackerCore/UI/HistoryListView.swift`, `Tests/FeedTrackerCoreTests/HistoryAndEditIntegrationTests.swift` |
-| AC-MVP-10 | Live Activity / Dynamic Island actions | PASS | `Sources/FeedTrackerCore/Features/LiveActivityQuickActionHandler.swift`, `Sources/FeedTrackerCore/Features/LiveActivityState.swift`, `Sources/FeedTrackerCore/Features/FeedTrackerLiveActivityAttributes.swift`, `Tests/FeedTrackerCoreTests/LiveActivityQuickActionHandlerTests.swift`, `docs/live-activity-dynamic-island-manual-test.md` |
-| AC-MVP-11 | Main navigation + visual quality baseline | TODO | pending UI structure and review checklist |
+| AC-MVP-10 | Live Activity / Dynamic Island actions | PASS | `Sources/FeedTrackerCore/Features/LiveActivityState.swift`, `Sources/FeedTrackerCore/Features/FeedTrackerLiveActivityAttributes.swift`, `Sources/FeedTrackerCore/Features/LiveActivityQuickActionRouter.swift`, `Sources/FeedTrackerCore/Features/LiveActivityQuickActionHandler.swift`, `Tests/FeedTrackerCoreTests/LiveActivityQuickActionHandlerTests.swift`, `docs/live-activity-dynamic-island-manual-test.md`, `scripts/manual_live_activity_quick_actions.sh` |
+| AC-MVP-11 | Main navigation + visual quality baseline | PASS | `Sources/FeedTrackerCore/UI/FeedTrackerMainNavigationView.swift`, `Sources/FeedTrackerCore/UI/ActiveSessionView.swift`, `Sources/FeedTrackerCore/UI/HistoryListView.swift`, `docs/ui-review-checklist-ac-mvp-11.md` |
 | AC-MVP-12 | Local persistence durability + migration | PASS | `Sources/FeedTrackerCore/Persistence/FileFeedingSessionRepository.swift`, `docs/local-storage-migration-strategy.md`, `Tests/FeedTrackerCoreTests/FileFeedingSessionRepositoryTests.swift` |
 | AC-P1-13 | Siri shortcuts (open/start/read) | TODO | pending AppIntents implementation |
 
@@ -22,4 +22,4 @@
 - `docs/pm-prd-v1.md`
 
 ## Current Implementation Focus
-- Batch B5 targets AC-MVP-11 and AC-P1-13.
+- Batch B6 targets AC-P1-13 Siri shortcuts.
