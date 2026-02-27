@@ -7,6 +7,11 @@ on:
         description: Git ref to checkout
         required: false
         type: string
+      environment_name:
+        description: Environment name that holds deploy secrets
+        required: false
+        default: prod
+        type: string
       deploy_command:
         description: Command used to deploy to TestFlight
         required: false
@@ -18,6 +23,7 @@ jobs:
     name: deploy-testflight
     runs-on: macos-14
     timeout-minutes: 30
+    environment: ${{ inputs.environment_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

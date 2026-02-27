@@ -14,9 +14,6 @@ on:
         default: bundle exec fastlane ios testflight
         type: string
 
-env:
-  RELEASE_REF: ${{ github.event.inputs.ref || 'main' }}
-
 concurrency:
   group: release-${{ github.event.inputs.ref || github.ref }}
   cancel-in-progress: false
@@ -41,9 +38,9 @@ jobs:
   deploy:
     name: deploy
     needs: [lint, test, build]
-    environment: prod
     uses: ./.github/workflows/_tool_deploy.yml
     with:
       checkout_ref: ${{ github.event.inputs.ref || 'main' }}
+      environment_name: prod
       deploy_command: ${{ github.event.inputs.deploy_command || 'bundle exec fastlane ios testflight' }}
     secrets: inherit
