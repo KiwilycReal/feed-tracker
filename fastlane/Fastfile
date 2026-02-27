@@ -81,7 +81,7 @@ platform :ios do
       output_name: "feed-tracker.ipa",
       include_symbols: true,
       include_bitcode: false,
-      xcargs: "-allowProvisioningUpdates DEVELOPMENT_TEAM=#{ENV["APPLE_TEAM_ID"]}"
+      xcargs: "DEVELOPMENT_TEAM=#{ENV["APPLE_TEAM_ID"]} CODE_SIGN_STYLE=Manual PROVISIONING_PROFILE_SPECIFIER=\"match AppStore #{bundle_id}\" CODE_SIGN_IDENTITY=\"Apple Distribution\""
     }
 
     if workspace.empty?
