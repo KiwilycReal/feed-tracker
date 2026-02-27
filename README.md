@@ -33,6 +33,7 @@ View -> ViewModel -> UseCase -> Repository/Service
 ## Release Workflow (TestFlight)
 - GitHub Action: `.github/workflows/release.yml`
 - Default deploy command: `bundle exec fastlane ios testflight`
+- Export compliance default is declared in generated Info.plist via project build setting: `ITSAppUsesNonExemptEncryption=NO`.
 - iOS project/scheme used by release lane:
   - `CI_XCODE_PROJECT=FeedTracker.xcodeproj`
   - `CI_XCODE_SCHEME=FeedTracker`
