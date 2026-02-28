@@ -61,6 +61,42 @@ final class HistoryAndEditIntegrationTests: XCTestCase {
         XCTAssertEqual(persisted?.note, "updated after doctor advice")
     }
 
+    func testHistoryEditFlowPersistsChangesThroughHistoryListViewModel() async throws {
+        let sessionID = UUID(uuidString: "00000000-0000-0000-0000-0000000000C1")!
+        let repository = InMemoryFeedingSessionRepository(initialSessions: [
+            try FeedingSession(
+                id: sessionID,
+                startedAt: Date(timeIntervalSince1970: 700),
+                endedAt: Date(timeIntervalSince1970: 790),
+                leftDuration: 30,
+                rightDuration: 60,
+                note: "before edit",
+                status: .completed
+            )
+        ])
+
+        let historyViewModel = HistoryListViewModel(repository: repository)
+        try await historyViewModel.reload()
+        XCTAssertEqual(historyViewModel.items.first?.leftDuration, 30)
+
+        try await historyViewModel.editSession(
+            id: sessionID,
+            leftDuration: 55,
+            rightDuration: 45,
+            note: "edited from history"
+        )
+
+        XCTAssertEqual(historyViewModel.items.first?.leftDuration, 55)
+        XCTAssertEqual(historyViewModel.items.first?.rightDuration, 45)
+        XCTAssertEqual(historyViewModel.items.first?.totalDuration, 100)
+        XCTAssertEqual(historyViewModel.items.first?.note, "edited from history")
+
+        let persisted = try await repository.fetch(id: sessionID)
+        XCTAssertEqual(persisted?.leftDuration, 55)
+        XCTAssertEqual(persisted?.rightDuration, 45)
+        XCTAssertEqual(persisted?.note, "edited from history")
+    }
+
     func testDeleteFlowRemovesSessionAndRefreshesHistoryList() async throws {
         let keepID = UUID(uuidString: "00000000-0000-0000-0000-0000000000C3")!
         let removeID = UUID(uuidString: "00000000-0000-0000-0000-0000000000C4")!

@@ -162,7 +162,7 @@ public struct ActiveSessionView: View {
     private func handleSideSelection(_ side: FeedingSide) {
         do {
             switch viewModel.displayState.state {
-            case .idle, .stopped:
+            case .idle, .stopped, .ended:
                 try viewModel.start(side: side)
             case .running(let activeSide):
                 guard activeSide != side else { return }
@@ -172,8 +172,6 @@ public struct ActiveSessionView: View {
                 if pausedSide != side {
                     try viewModel.switchSide(to: side)
                 }
-            case .ended:
-                actionErrorMessage = "Session already ended. Start a new session from app root."
             }
         } catch {
             present(error)
