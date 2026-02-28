@@ -33,15 +33,18 @@ public struct ActiveSessionDisplayState: Equatable, Sendable {
 public final class ActiveSessionViewModel: ObservableObject {
     private let engine: SessionTimerEngine
     private let repository: any FeedingSessionRepository
+    private let diagnostics: (any DiagnosticsLogging)?
 
     @Published public private(set) var displayState: ActiveSessionDisplayState
 
     public init(
         engine: SessionTimerEngine,
-        repository: any FeedingSessionRepository
+        repository: any FeedingSessionRepository,
+        diagnostics: (any DiagnosticsLogging)? = nil
     ) {
         self.engine = engine
         self.repository = repository
+        self.diagnostics = diagnostics
         self.displayState = ActiveSessionDisplayState(snapshot: engine.snapshot())
     }
 
@@ -50,35 +53,155 @@ public final class ActiveSessionViewModel: ObservableObject {
     }
 
     public func start(side: FeedingSide) throws {
-        try engine.start(side)
-        refresh()
+        do {
+            try engine.start(side)
+            refresh()
+            diagnostics?.record(
+                category: "session",
+                action: "start",
+                metadata: [
+                    "side": side.rawValue,
+                    "state": sessionStateLabel(displayState.state)
+                ],
+                source: "active_session_vm"
+            )
+        } catch {
+            diagnostics?.recordError(
+                context: "session.start",
+                message: error.localizedDescription,
+                metadata: ["side": side.rawValue],
+                source: "active_session_vm"
+            )
+            throw error
+        }
     }
 
     public func switchSide(to side: FeedingSide) throws {
-        try engine.switch(to: side)
-        refresh()
+        do {
+            try engine.switch(to: side)
+            refresh()
+            diagnostics?.record(
+                category: "session",
+                action: "switch_side",
+                metadata: [
+                    "side": side.rawValue,
+                    "state": sessionStateLabel(displayState.state)
+                ],
+                source: "active_session_vm"
+            )
+        } catch {
+            diagnostics?.recordError(
+                context: "session.switch_side",
+                message: error.localizedDescription,
+                metadata: ["side": side.rawValue],
+                source: "active_session_vm"
+            )
+            throw error
+        }
     }
 
     public func pause() throws {
-        try engine.pause()
-        refresh()
+        do {
+            try engine.pause()
+            refresh()
+            diagnostics?.record(
+                category: "session",
+                action: "pause",
+                metadata: ["state": sessionStateLabel(displayState.state)],
+                source: "active_session_vm"
+            )
+        } catch {
+            diagnostics?.recordError(
+                context: "session.pause",
+                message: error.localizedDescription,
+                metadata: [:],
+                source: "active_session_vm"
+            )
+            throw error
+        }
     }
 
     public func resume() throws {
-        try engine.resume()
-        refresh()
+        do {
+            try engine.resume()
+            refresh()
+            diagnostics?.record(
+                category: "session",
+                action: "resume",
+                metadata: ["state": sessionStateLabel(displayState.state)],
+                source: "active_session_vm"
+            )
+        } catch {
+            diagnostics?.recordError(
+                context: "session.resume",
+                message: error.localizedDescription,
+                metadata: [:],
+                source: "active_session_vm"
+            )
+            throw error
+        }
     }
 
     public func stopCurrentSide() throws {
-        try engine.stopCurrentSide()
-        refresh()
+        do {
+            try engine.stopCurrentSide()
+            refresh()
+            diagnostics?.record(
+                category: "session",
+                action: "stop_current_side",
+                metadata: ["state": sessionStateLabel(displayState.state)],
+                source: "active_session_vm"
+            )
+        } catch {
+            diagnostics?.recordError(
+                context: "session.stop_current_side",
+                message: error.localizedDescription,
+                metadata: [:],
+                source: "active_session_vm"
+            )
+            throw error
+        }
     }
 
     @discardableResult
     public func endSession(note: String? = nil) async throws -> FeedingSession {
-        let session = try engine.endSession(note: note)
-        try await repository.upsert(session)
-        refresh()
-        return session
+        do {
+            let session = try engine.endSession(note: note)
+            try await repository.upsert(session)
+            refresh()
+            diagnostics?.record(
+                category: "persistence",
+                action: "save_completed_session",
+                metadata: [
+                    "sessionID": session.id.uuidString,
+                    "totalDuration": "\(Int(session.totalDuration.rounded()))"
+                ],
+                source: "active_session_vm"
+            )
+            return session
+        } catch {
+            diagnostics?.recordError(
+                context: "session.end_and_persist",
+                message: error.localizedDescription,
+                metadata: [:],
+                source: "active_session_vm"
+            )
+            throw error
+        }
+    }
+
+    private func sessionStateLabel(_ state: SessionTimerState) -> String {
+        switch state {
+        case .idle:
+            return "idle"
+        case .running(let side):
+            return "running_\(side.rawValue)"
+        case .paused(let side):
+            return "paused_\(side.rawValue)"
+        case .stopped:
+            return "stopped"
+        case .ended:
+            return "ended"
+        }
     }
 }
