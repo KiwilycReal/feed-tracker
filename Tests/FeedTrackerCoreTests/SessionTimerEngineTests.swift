@@ -57,6 +57,25 @@ final class SessionTimerEngineTests: XCTestCase {
         XCTAssertEqual(running.totalElapsed, 30, accuracy: 0.001)
     }
 
+    func testStartAfterEndingCreatesFreshSessionWithoutAppRestart() throws {
+        let clock = TestClock(start: Date(timeIntervalSince1970: 2_500))
+        let engine = SessionTimerEngine(now: { clock.now })
+
+        try engine.start(.left)
+        clock.advance(seconds: 20)
+        _ = try engine.endSession(note: "first")
+
+        clock.advance(seconds: 5)
+        try engine.start(.right)
+        clock.advance(seconds: 12)
+
+        let snapshot = engine.snapshot()
+        XCTAssertEqual(snapshot.state, .running(side: .right))
+        XCTAssertEqual(snapshot.leftElapsed, 0, accuracy: 0.001)
+        XCTAssertEqual(snapshot.rightElapsed, 12, accuracy: 0.001)
+        XCTAssertEqual(snapshot.totalElapsed, 12, accuracy: 0.001)
+    }
+
     func testInvalidTransitionResumeWithoutPauseThrows() throws {
         let clock = TestClock(start: Date(timeIntervalSince1970: 3_000))
         let engine = SessionTimerEngine(now: { clock.now })

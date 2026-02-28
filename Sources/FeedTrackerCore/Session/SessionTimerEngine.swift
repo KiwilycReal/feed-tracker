@@ -42,7 +42,7 @@ public final class SessionTimerEngine {
         let current = now()
 
         switch state {
-        case .idle:
+        case .idle, .ended:
             startedAt = current
             endedAt = nil
             leftAccumulated = 0

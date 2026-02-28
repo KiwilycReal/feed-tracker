@@ -1,6 +1,10 @@
 import Combine
 import Foundation
 
+public enum HistoryListViewModelError: Error, Equatable {
+    case sessionNotFound
+}
+
 public struct HistorySessionListItem: Identifiable, Equatable, Sendable {
     public let id: UUID
     public let startedAt: Date
@@ -40,6 +44,26 @@ public final class HistoryListViewModel: ObservableObject {
 
     public func deleteSession(id: UUID) async throws {
         try await repository.remove(id: id)
+        try await reload()
+    }
+
+    public func editSession(
+        id: UUID,
+        leftDuration: TimeInterval,
+        rightDuration: TimeInterval,
+        note: String?
+    ) async throws {
+        guard let session = try await repository.fetch(id: id) else {
+            throw HistoryListViewModelError.sessionNotFound
+        }
+
+        let updated = try session.edited(
+            leftDuration: leftDuration,
+            rightDuration: rightDuration,
+            note: note
+        )
+
+        try await repository.upsert(updated)
         try await reload()
     }
 }

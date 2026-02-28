@@ -7,6 +7,12 @@ public struct HistoryListView: View {
     @State private var pendingDeleteItem: HistorySessionListItem?
     @State private var deleteErrorMessage: String?
 
+    @State private var pendingEditItem: HistorySessionListItem?
+    @State private var editLeftDurationText: String = ""
+    @State private var editRightDurationText: String = ""
+    @State private var editNoteText: String = ""
+    @State private var editErrorMessage: String?
+
     public init(viewModel: @autoclosure @escaping () -> HistoryListViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel())
     }
@@ -21,6 +27,14 @@ public struct HistoryListView: View {
                     HistoryRow(item: item)
                         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                         .listRowBackground(FeedTrackerPalette.pageBackground)
+                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                            Button {
+                                presentEdit(for: item)
+                            } label: {
+                                Label("Edit", systemImage: "pencil")
+                            }
+                            .tint(FeedTrackerPalette.accent)
+                        }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
                                 pendingDeleteItem = item
@@ -53,12 +67,22 @@ public struct HistoryListView: View {
         } message: { _ in
             Text("This action cannot be undone.")
         }
+        .sheet(item: $pendingEditItem) { item in
+            editSheet(for: item)
+        }
         .alert("Delete failed", isPresented: deleteErrorBinding) {
             Button("OK", role: .cancel) {
                 deleteErrorMessage = nil
             }
         } message: {
             Text(deleteErrorMessage ?? "Unknown error")
+        }
+        .alert("Edit failed", isPresented: editErrorBinding) {
+            Button("OK", role: .cancel) {
+                editErrorMessage = nil
+            }
+        } message: {
+            Text(editErrorMessage ?? "Unknown error")
         }
     }
 
@@ -99,6 +123,92 @@ public struct HistoryListView: View {
                 }
             }
         )
+    }
+
+    private var editErrorBinding: Binding<Bool> {
+        Binding(
+            get: { editErrorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    editErrorMessage = nil
+                }
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func editSheet(for item: HistorySessionListItem) -> some View {
+        NavigationStack {
+            Form {
+                Section("Durations (seconds)") {
+                    TextField("Left duration", text: $editLeftDurationText)
+                    TextField("Right duration", text: $editRightDurationText)
+                }
+
+                Section("Note") {
+                    TextField("Optional note", text: $editNoteText)
+                }
+            }
+            .navigationTitle("Edit Session")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        pendingEditItem = nil
+                    }
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        Task {
+                            await performEdit(for: item)
+                        }
+                    }
+                    .disabled(!canSaveEdit)
+                }
+            }
+        }
+    }
+
+    private var canSaveEdit: Bool {
+        parseDuration(editLeftDurationText) != nil && parseDuration(editRightDurationText) != nil
+    }
+
+    private func presentEdit(for item: HistorySessionListItem) {
+        editLeftDurationText = String(Int(item.leftDuration.rounded()))
+        editRightDurationText = String(Int(item.rightDuration.rounded()))
+        editNoteText = item.note ?? ""
+        pendingEditItem = item
+    }
+
+    private func parseDuration(_ text: String) -> TimeInterval? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let value = TimeInterval(trimmed), value >= 0 else {
+            return nil
+        }
+        return value
+    }
+
+    private func performEdit(for item: HistorySessionListItem) async {
+        guard
+            let leftDuration = parseDuration(editLeftDurationText),
+            let rightDuration = parseDuration(editRightDurationText)
+        else {
+            editErrorMessage = "Durations must be non-negative numbers in seconds."
+            return
+        }
+
+        let note = editNoteText.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            try await viewModel.editSession(
+                id: item.id,
+                leftDuration: leftDuration,
+                rightDuration: rightDuration,
+                note: note.isEmpty ? nil : note
+            )
+            pendingEditItem = nil
+        } catch {
+            editErrorMessage = error.localizedDescription
+        }
     }
 
     private func performDelete(for item: HistorySessionListItem) async {
