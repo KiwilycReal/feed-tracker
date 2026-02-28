@@ -17,40 +17,81 @@ public final class LiveActivityQuickActionHandler {
     private let engine: SessionTimerEngine
     private let repository: any FeedingSessionRepository
     private let router: any LiveActivityQuickActionRouting
+    private let diagnostics: (any DiagnosticsLogging)?
 
     public init(
         engine: SessionTimerEngine,
         repository: any FeedingSessionRepository,
-        router: any LiveActivityQuickActionRouting = LiveActivityQuickActionRouter()
+        router: any LiveActivityQuickActionRouting = LiveActivityQuickActionRouter(),
+        diagnostics: (any DiagnosticsLogging)? = nil
     ) {
         self.engine = engine
         self.repository = repository
         self.router = router
+        self.diagnostics = diagnostics
     }
 
     @discardableResult
     public func handle(_ action: LiveActivityQuickAction, note: String? = nil) async throws -> FeedingSession? {
-        switch action {
-        case .startLeft:
-            try startOrSwitch(to: .left)
-            return nil
-        case .startRight:
-            try startOrSwitch(to: .right)
-            return nil
-        case .endSession:
-            do {
+        do {
+            switch action {
+            case .startLeft:
+                try startOrSwitch(to: .left)
+                diagnostics?.record(
+                    category: "live_activity",
+                    action: "start_left",
+                    metadata: [:],
+                    source: "live_activity_handler"
+                )
+                return nil
+            case .startRight:
+                try startOrSwitch(to: .right)
+                diagnostics?.record(
+                    category: "live_activity",
+                    action: "start_right",
+                    metadata: [:],
+                    source: "live_activity_handler"
+                )
+                return nil
+            case .endSession:
                 let session = try engine.endSession(note: note)
                 try await repository.upsert(session)
+                diagnostics?.record(
+                    category: "live_activity",
+                    action: "end_session",
+                    metadata: ["sessionID": session.id.uuidString],
+                    source: "live_activity_handler"
+                )
                 return session
-            } catch SessionTimerEngineError.sessionNotStarted {
-                throw LiveActivityQuickActionError.cannotEndWithoutStartedSession
             }
+        } catch SessionTimerEngineError.sessionNotStarted {
+            diagnostics?.recordError(
+                context: "live_activity.end_session",
+                message: SessionTimerEngineError.sessionNotStarted.localizedDescription,
+                metadata: [:],
+                source: "live_activity_handler"
+            )
+            throw LiveActivityQuickActionError.cannotEndWithoutStartedSession
+        } catch {
+            diagnostics?.recordError(
+                context: "live_activity.handle",
+                message: error.localizedDescription,
+                metadata: ["action": action.rawValue],
+                source: "live_activity_handler"
+            )
+            throw error
         }
     }
 
     @discardableResult
     public func handle(url: URL, note: String? = nil) async throws -> FeedingSession? {
         guard let action = router.action(from: url) else {
+            diagnostics?.recordError(
+                context: "live_activity.handle_url",
+                message: LiveActivityQuickActionError.unsupportedDeepLink.localizedDescription,
+                metadata: ["url": url.absoluteString],
+                source: "live_activity_handler"
+            )
             throw LiveActivityQuickActionError.unsupportedDeepLink
         }
 
