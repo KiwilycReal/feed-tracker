@@ -11,6 +11,7 @@ public enum SessionTimerState: Equatable, Sendable {
 public enum SessionTimerEngineError: Error, Equatable, Sendable {
     case invalidTransition(action: String, state: SessionTimerState)
     case sessionNotStarted
+    case invalidRecoveryState
 }
 
 public struct SessionTimerSnapshot: Equatable, Sendable {
@@ -21,6 +22,36 @@ public struct SessionTimerSnapshot: Equatable, Sendable {
     public let totalElapsed: TimeInterval
     public let startedAt: Date?
     public let endedAt: Date?
+}
+
+public enum SessionTimerRecoveryStatus: String, Codable, Equatable, Sendable {
+    case runningLeft
+    case runningRight
+    case pausedLeft
+    case pausedRight
+    case stopped
+}
+
+public struct SessionTimerRecoveryState: Codable, Equatable, Sendable {
+    public let status: SessionTimerRecoveryStatus
+    public let startedAt: Date
+    public let runningSince: Date?
+    public let leftAccumulated: TimeInterval
+    public let rightAccumulated: TimeInterval
+
+    public init(
+        status: SessionTimerRecoveryStatus,
+        startedAt: Date,
+        runningSince: Date?,
+        leftAccumulated: TimeInterval,
+        rightAccumulated: TimeInterval
+    ) {
+        self.status = status
+        self.startedAt = startedAt
+        self.runningSince = runningSince
+        self.leftAccumulated = leftAccumulated
+        self.rightAccumulated = rightAccumulated
+    }
 }
 
 public final class SessionTimerEngine {
@@ -144,6 +175,84 @@ public final class SessionTimerEngine {
             note: note,
             status: .completed
         )
+    }
+
+    public func recoveryStateForPersistence() -> SessionTimerRecoveryState? {
+        guard let startedAt else {
+            return nil
+        }
+
+        switch state {
+        case .idle, .ended:
+            return nil
+
+        case .running(let side):
+            let status: SessionTimerRecoveryStatus = side == .left ? .runningLeft : .runningRight
+            return SessionTimerRecoveryState(
+                status: status,
+                startedAt: startedAt,
+                runningSince: runningSince,
+                leftAccumulated: leftAccumulated,
+                rightAccumulated: rightAccumulated
+            )
+
+        case .paused(let side):
+            let status: SessionTimerRecoveryStatus = side == .left ? .pausedLeft : .pausedRight
+            return SessionTimerRecoveryState(
+                status: status,
+                startedAt: startedAt,
+                runningSince: nil,
+                leftAccumulated: leftAccumulated,
+                rightAccumulated: rightAccumulated
+            )
+
+        case .stopped:
+            return SessionTimerRecoveryState(
+                status: .stopped,
+                startedAt: startedAt,
+                runningSince: nil,
+                leftAccumulated: leftAccumulated,
+                rightAccumulated: rightAccumulated
+            )
+        }
+    }
+
+    public func restore(from recoveryState: SessionTimerRecoveryState) throws {
+        guard recoveryState.leftAccumulated >= 0, recoveryState.rightAccumulated >= 0 else {
+            throw SessionTimerEngineError.invalidRecoveryState
+        }
+
+        self.startedAt = recoveryState.startedAt
+        self.endedAt = nil
+        self.leftAccumulated = recoveryState.leftAccumulated
+        self.rightAccumulated = recoveryState.rightAccumulated
+
+        switch recoveryState.status {
+        case .runningLeft:
+            runningSide = .left
+            runningSince = recoveryState.runningSince ?? recoveryState.startedAt
+            state = .running(side: .left)
+
+        case .runningRight:
+            runningSide = .right
+            runningSince = recoveryState.runningSince ?? recoveryState.startedAt
+            state = .running(side: .right)
+
+        case .pausedLeft:
+            runningSide = nil
+            runningSince = nil
+            state = .paused(side: .left)
+
+        case .pausedRight:
+            runningSide = nil
+            runningSince = nil
+            state = .paused(side: .right)
+
+        case .stopped:
+            runningSide = nil
+            runningSince = nil
+            state = .stopped
+        }
     }
 
     public func snapshot(at date: Date? = nil) -> SessionTimerSnapshot {

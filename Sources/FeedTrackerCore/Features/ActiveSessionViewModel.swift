@@ -34,17 +34,23 @@ public final class ActiveSessionViewModel: ObservableObject {
     private let engine: SessionTimerEngine
     private let repository: any FeedingSessionRepository
     private let diagnostics: (any DiagnosticsLogging)?
+    private let recoveryStore: (any ActiveSessionRecoveryStoring)?
 
     @Published public private(set) var displayState: ActiveSessionDisplayState
 
     public init(
         engine: SessionTimerEngine,
         repository: any FeedingSessionRepository,
-        diagnostics: (any DiagnosticsLogging)? = nil
+        diagnostics: (any DiagnosticsLogging)? = nil,
+        recoveryStore: (any ActiveSessionRecoveryStoring)? = nil
     ) {
         self.engine = engine
         self.repository = repository
         self.diagnostics = diagnostics
+        self.recoveryStore = recoveryStore
+        self.displayState = .idle
+
+        restoreRecoveredState()
         self.displayState = ActiveSessionDisplayState(snapshot: engine.snapshot())
     }
 
@@ -56,6 +62,7 @@ public final class ActiveSessionViewModel: ObservableObject {
         do {
             try engine.start(side)
             refresh()
+            persistRecoveryState(context: "session.start")
             diagnostics?.record(
                 category: "session",
                 action: "start",
@@ -80,6 +87,7 @@ public final class ActiveSessionViewModel: ObservableObject {
         do {
             try engine.switch(to: side)
             refresh()
+            persistRecoveryState(context: "session.switch_side")
             diagnostics?.record(
                 category: "session",
                 action: "switch_side",
@@ -104,6 +112,7 @@ public final class ActiveSessionViewModel: ObservableObject {
         do {
             try engine.pause()
             refresh()
+            persistRecoveryState(context: "session.pause")
             diagnostics?.record(
                 category: "session",
                 action: "pause",
@@ -125,6 +134,7 @@ public final class ActiveSessionViewModel: ObservableObject {
         do {
             try engine.resume()
             refresh()
+            persistRecoveryState(context: "session.resume")
             diagnostics?.record(
                 category: "session",
                 action: "resume",
@@ -146,6 +156,7 @@ public final class ActiveSessionViewModel: ObservableObject {
         do {
             try engine.stopCurrentSide()
             refresh()
+            persistRecoveryState(context: "session.stop_current_side")
             diagnostics?.record(
                 category: "session",
                 action: "stop_current_side",
@@ -169,6 +180,7 @@ public final class ActiveSessionViewModel: ObservableObject {
             let session = try engine.endSession(note: note)
             try await repository.upsert(session)
             refresh()
+            persistRecoveryState(context: "session.end")
             diagnostics?.record(
                 category: "persistence",
                 action: "save_completed_session",
@@ -187,6 +199,77 @@ public final class ActiveSessionViewModel: ObservableObject {
                 source: "active_session_vm"
             )
             throw error
+        }
+    }
+
+    private func restoreRecoveredState() {
+        guard let recoveryStore else {
+            return
+        }
+
+        do {
+            guard let recoveryState = try recoveryStore.load() else {
+                return
+            }
+
+            try engine.restore(from: recoveryState)
+            diagnostics?.record(
+                category: "session_recovery",
+                action: "restore_success",
+                metadata: ["status": recoveryState.status.rawValue],
+                source: "active_session_vm"
+            )
+        } catch {
+            do {
+                try recoveryStore.clear()
+            } catch {
+                diagnostics?.recordError(
+                    context: "session_recovery.clear_after_failed_restore",
+                    message: error.localizedDescription,
+                    metadata: [:],
+                    source: "active_session_vm"
+                )
+            }
+
+            diagnostics?.recordError(
+                context: "session_recovery.restore",
+                message: error.localizedDescription,
+                metadata: [:],
+                source: "active_session_vm"
+            )
+        }
+    }
+
+    private func persistRecoveryState(context: String) {
+        guard let recoveryStore else {
+            return
+        }
+
+        do {
+            if let state = engine.recoveryStateForPersistence() {
+                try recoveryStore.save(state)
+                diagnostics?.record(
+                    category: "session_recovery",
+                    action: "persist",
+                    metadata: ["status": state.status.rawValue],
+                    source: "active_session_vm"
+                )
+            } else {
+                try recoveryStore.clear()
+                diagnostics?.record(
+                    category: "session_recovery",
+                    action: "clear",
+                    metadata: ["context": context],
+                    source: "active_session_vm"
+                )
+            }
+        } catch {
+            diagnostics?.recordError(
+                context: "session_recovery.persist",
+                message: error.localizedDescription,
+                metadata: ["eventContext": context],
+                source: "active_session_vm"
+            )
         }
     }
 

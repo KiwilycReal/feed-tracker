@@ -2,15 +2,51 @@ import SwiftUI
 import FeedTrackerCore
 import Darwin
 
+final class UserDefaultsActiveSessionRecoveryStore: ActiveSessionRecoveryStoring {
+    private let userDefaults: UserDefaults
+    private let key: String
+
+    init(
+        userDefaults: UserDefaults = .standard,
+        key: String = "feedtracker.active_session_recovery.v1"
+    ) {
+        self.userDefaults = userDefaults
+        self.key = key
+    }
+
+    func load() throws -> SessionTimerRecoveryState? {
+        guard let data = userDefaults.data(forKey: key) else {
+            return nil
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(SessionTimerRecoveryState.self, from: data)
+    }
+
+    func save(_ state: SessionTimerRecoveryState) throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(state)
+        userDefaults.set(data, forKey: key)
+    }
+
+    func clear() throws {
+        userDefaults.removeObject(forKey: key)
+    }
+}
+
 @MainActor
 final class FeedTrackerDependencies {
     let engine: SessionTimerEngine
     let repository: any FeedingSessionRepository
     let diagnosticsLogger: DiagnosticsEventLogger
+    let activeSessionRecoveryStore: any ActiveSessionRecoveryStoring
 
     init() {
         self.engine = SessionTimerEngine()
         self.diagnosticsLogger = DiagnosticsEventLogger(defaultSourceTag: "ios-app")
+        self.activeSessionRecoveryStore = UserDefaultsActiveSessionRecoveryStore()
 
         let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
         let dataURL = supportDir?
@@ -61,7 +97,8 @@ struct FeedTrackerApp: App {
                 activeSessionViewModel: ActiveSessionViewModel(
                     engine: deps.engine,
                     repository: deps.repository,
-                    diagnostics: deps.diagnosticsLogger
+                    diagnostics: deps.diagnosticsLogger,
+                    recoveryStore: deps.activeSessionRecoveryStore
                 ),
                 historyViewModel: HistoryListViewModel(
                     repository: deps.repository,
