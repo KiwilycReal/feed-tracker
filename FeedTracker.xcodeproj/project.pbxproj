@@ -10,16 +10,54 @@
 		1A3BB82088B2BFF723EC808B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F4532E3D088626DD0EA45544 /* Assets.xcassets */; };
 		598B5D6383097635CA98E872 /* FeedTrackerCore in Frameworks */ = {isa = PBXBuildFile; productRef = 79E95D4386CB2739694997BF /* FeedTrackerCore */; };
 		5AF8DF3EAC645D4EB0C58887 /* FeedTrackerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04E38D7276AA77212BE91AA3 /* FeedTrackerApp.swift */; };
+		80C0FFB1FB9AA2172220E602 /* FeedTrackerCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4E9622CF843E4D5E5BD32AE3 /* FeedTrackerCore */; };
+		8424615CAA24E7821DFC88F6 /* FeedTrackerLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7693EE64399C604A331988C6 /* FeedTrackerLiveActivityWidget.swift */; };
+		BEBC38355E98D0C9979E9895 /* FeedTrackerLiveActivityWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = ECA8BD98DE0EA5BF030F5A9E /* FeedTrackerLiveActivityWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		083586455D585ACD7708BF2F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 135C9E9911663FBF92FBFA77 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1964F1F97D1930409B11E0D3;
+			remoteInfo = FeedTrackerLiveActivityWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		06603D7AD65FA8FFD1682A06 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				BEBC38355E98D0C9979E9895 /* FeedTrackerLiveActivityWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		04E38D7276AA77212BE91AA3 /* FeedTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedTrackerApp.swift; sourceTree = "<group>"; };
 		0D25A00D10CEAA8833BE6C8A /* FeedTracker.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FeedTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0F568BCADE1EBB396D967108 /* feed-tracker */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "feed-tracker"; path = .; sourceTree = SOURCE_ROOT; };
+		3E115FBA52DA4CF25106AA57 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		7693EE64399C604A331988C6 /* FeedTrackerLiveActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedTrackerLiveActivityWidget.swift; sourceTree = "<group>"; };
+		ECA8BD98DE0EA5BF030F5A9E /* FeedTrackerLiveActivityWidgetExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = FeedTrackerLiveActivityWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		F4532E3D088626DD0EA45544 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		098DE8E960BED2E0F2955864 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				80C0FFB1FB9AA2172220E602 /* FeedTrackerCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		09FA4B42C1C8582EE09494E8 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -31,10 +69,20 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		84DC881D3707D4A00329D785 /* LiveActivityWidgetExtension */ = {
+			isa = PBXGroup;
+			children = (
+				7693EE64399C604A331988C6 /* FeedTrackerLiveActivityWidget.swift */,
+				3E115FBA52DA4CF25106AA57 /* Info.plist */,
+			);
+			path = LiveActivityWidgetExtension;
+			sourceTree = "<group>";
+		};
 		B54C7CD3A8649C0866B78852 = {
 			isa = PBXGroup;
 			children = (
 				E291A974B52027C7F4536156 /* App */,
+				84DC881D3707D4A00329D785 /* LiveActivityWidgetExtension */,
 				FE95F05A7F3CAEAC8B03B2D9 /* Packages */,
 				CAB0DCE622715978FAA09C1F /* Products */,
 			);
@@ -44,6 +92,7 @@
 			isa = PBXGroup;
 			children = (
 				0D25A00D10CEAA8833BE6C8A /* FeedTracker.app */,
+				ECA8BD98DE0EA5BF030F5A9E /* FeedTrackerLiveActivityWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -68,6 +117,25 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		1964F1F97D1930409B11E0D3 /* FeedTrackerLiveActivityWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 084216520040DD4464E59E87 /* Build configuration list for PBXNativeTarget "FeedTrackerLiveActivityWidgetExtension" */;
+			buildPhases = (
+				27862DF80DF9481001AB72B5 /* Sources */,
+				098DE8E960BED2E0F2955864 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FeedTrackerLiveActivityWidgetExtension;
+			packageProductDependencies = (
+				4E9622CF843E4D5E5BD32AE3 /* FeedTrackerCore */,
+			);
+			productName = FeedTrackerLiveActivityWidgetExtension;
+			productReference = ECA8BD98DE0EA5BF030F5A9E /* FeedTrackerLiveActivityWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		2171469B6E9F1601481FBBC1 /* FeedTracker */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 72F06A9EAE1ECEC0A158E6D3 /* Build configuration list for PBXNativeTarget "FeedTracker" */;
@@ -75,10 +143,12 @@
 				59CD91EA8FC66FB80B6C9CDE /* Sources */,
 				5AF7F4332CA4D1A87D9D9526 /* Resources */,
 				09FA4B42C1C8582EE09494E8 /* Frameworks */,
+				06603D7AD65FA8FFD1682A06 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				CDD2B235AC470E3F08F11797 /* PBXTargetDependency */,
 			);
 			name = FeedTracker;
 			packageProductDependencies = (
@@ -97,6 +167,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					1964F1F97D1930409B11E0D3 = {
+						ProvisioningStyle = Automatic;
+					};
 					2171469B6E9F1601481FBBC1 = {
 						ProvisioningStyle = Automatic;
 					};
@@ -120,6 +193,7 @@
 			projectRoot = "";
 			targets = (
 				2171469B6E9F1601481FBBC1 /* FeedTracker */,
+				1964F1F97D1930409B11E0D3 /* FeedTrackerLiveActivityWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -136,6 +210,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		27862DF80DF9481001AB72B5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8424615CAA24E7821DFC88F6 /* FeedTrackerLiveActivityWidget.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		59CD91EA8FC66FB80B6C9CDE /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -145,6 +227,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		CDD2B235AC470E3F08F11797 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1964F1F97D1930409B11E0D3 /* FeedTrackerLiveActivityWidgetExtension */;
+			targetProxy = 083586455D585ACD7708BF2F /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		0095E7605C4981EC325319D6 /* Debug */ = {
@@ -266,6 +356,48 @@
 			};
 			name = Release;
 		};
+		C8CF2A7044DDCC7DD500751D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = LiveActivityWidgetExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kiwilyc.feedtracker.LiveActivityWidgetExtension;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D4C993BD53C555FC8D39C9AD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = LiveActivityWidgetExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kiwilyc.feedtracker.LiveActivityWidgetExtension;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		D8AAB1DD9B2FA5830B632106 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -275,6 +407,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -301,6 +434,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -321,6 +455,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		084216520040DD4464E59E87 /* Build configuration list for PBXNativeTarget "FeedTrackerLiveActivityWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C8CF2A7044DDCC7DD500751D /* Debug */,
+				D4C993BD53C555FC8D39C9AD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		46D7AD80F65929BEEB5FE297 /* Build configuration list for PBXProject "FeedTracker" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -349,6 +492,10 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		4E9622CF843E4D5E5BD32AE3 /* FeedTrackerCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FeedTrackerCore;
+		};
 		79E95D4386CB2739694997BF /* FeedTrackerCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = FeedTrackerCore;

@@ -21,6 +21,20 @@
                ReferencedContainer = "container:FeedTracker.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "1964F1F97D1930409B11E0D3"
+               BuildableName = "FeedTrackerLiveActivityWidgetExtension.appex"
+               BlueprintName = "FeedTrackerLiveActivityWidgetExtension"
+               ReferencedContainer = "container:FeedTracker.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
