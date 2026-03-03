@@ -76,6 +76,28 @@ final class SessionTimerEngineTests: XCTestCase {
         XCTAssertEqual(snapshot.totalElapsed, 12, accuracy: 0.001)
     }
 
+    func testTerminalEndedStateRejectsStaleMutationsWithoutChangingSnapshot() throws {
+        let clock = TestClock(start: Date(timeIntervalSince1970: 2_900))
+        let engine = SessionTimerEngine(now: { clock.now })
+
+        try engine.start(.left)
+        clock.advance(seconds: 8)
+        _ = try engine.endSession(note: nil)
+
+        let baseline = engine.snapshot()
+
+        XCTAssertThrowsError(try engine.pause())
+        XCTAssertThrowsError(try engine.resume())
+        XCTAssertThrowsError(try engine.stopCurrentSide())
+        XCTAssertThrowsError(try engine.switch(to: .right))
+
+        let after = engine.snapshot()
+        XCTAssertEqual(after.state, .ended)
+        XCTAssertEqual(after.leftElapsed, baseline.leftElapsed, accuracy: 0.001)
+        XCTAssertEqual(after.rightElapsed, baseline.rightElapsed, accuracy: 0.001)
+        XCTAssertEqual(after.totalElapsed, baseline.totalElapsed, accuracy: 0.001)
+    }
+
     func testInvalidTransitionResumeWithoutPauseThrows() throws {
         let clock = TestClock(start: Date(timeIntervalSince1970: 3_000))
         let engine = SessionTimerEngine(now: { clock.now })

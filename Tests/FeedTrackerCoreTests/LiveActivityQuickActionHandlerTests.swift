@@ -4,59 +4,48 @@ import XCTest
 
 @MainActor
 final class LiveActivityQuickActionHandlerTests: XCTestCase {
-    func testStartLeftCreatesRunningStateFromIdle() async throws {
+    func testSwitchSideTogglesFromRunningState() async throws {
         let clock = QuickActionTestClock(start: Date(timeIntervalSince1970: 40_000))
         let engine = SessionTimerEngine(now: { clock.now })
         let repository = InMemoryFeedingSessionRepository()
         let handler = LiveActivityQuickActionHandler(engine: engine, repository: repository)
 
         try await handler.handle(.startLeft)
-
-        let state = handler.currentState()
-        XCTAssertEqual(state.activeSide, .left)
-        XCTAssertEqual(state.timerStatus, .running)
-    }
-
-    func testStartRightSwitchesSideFromRunningLeft() async throws {
-        let clock = QuickActionTestClock(start: Date(timeIntervalSince1970: 50_000))
-        let engine = SessionTimerEngine(now: { clock.now })
-        let repository = InMemoryFeedingSessionRepository()
-        let handler = LiveActivityQuickActionHandler(engine: engine, repository: repository)
-
-        try await handler.handle(.startLeft)
         clock.advance(seconds: 30)
-        try await handler.handle(.startRight)
+
+        try await handler.handle(.switchSide)
         clock.advance(seconds: 12)
 
         let state = handler.currentState()
         XCTAssertEqual(state.activeSide, .right)
         XCTAssertEqual(state.leftElapsed, 30, accuracy: 0.001)
         XCTAssertEqual(state.rightElapsed, 12, accuracy: 0.001)
-        XCTAssertEqual(state.totalElapsed, 42, accuracy: 0.001)
     }
 
-    func testStartLeftResumesFromPausedAndSwitchesSide() async throws {
-        let clock = QuickActionTestClock(start: Date(timeIntervalSince1970: 60_000))
+    func testPauseSessionIsIdempotent() async throws {
+        let clock = QuickActionTestClock(start: Date(timeIntervalSince1970: 50_000))
         let engine = SessionTimerEngine(now: { clock.now })
         let repository = InMemoryFeedingSessionRepository()
         let handler = LiveActivityQuickActionHandler(engine: engine, repository: repository)
 
         try await handler.handle(.startRight)
         clock.advance(seconds: 10)
-        try engine.pause()
-        clock.advance(seconds: 3)
+        try await handler.handle(.pauseSession)
 
-        try await handler.handle(.startLeft)
-        clock.advance(seconds: 7)
+        let pausedSnapshot = handler.currentState(at: clock.now)
+        XCTAssertEqual(pausedSnapshot.timerStatus, .paused)
+        XCTAssertEqual(pausedSnapshot.rightElapsed, 10, accuracy: 0.001)
 
-        let state = handler.currentState()
-        XCTAssertEqual(state.activeSide, .left)
-        XCTAssertEqual(state.rightElapsed, 10, accuracy: 0.001)
-        XCTAssertEqual(state.leftElapsed, 7, accuracy: 0.001)
-        XCTAssertEqual(state.totalElapsed, 17, accuracy: 0.001)
+        // repeated pause should be no-op and not throw
+        try await handler.handle(.pauseSession)
+        clock.advance(seconds: 15)
+
+        let stillPaused = handler.currentState(at: clock.now)
+        XCTAssertEqual(stillPaused.timerStatus, .paused)
+        XCTAssertEqual(stillPaused.rightElapsed, 10, accuracy: 0.001)
     }
 
-    func testEndSessionPersistsCompletedSession() async throws {
+    func testTerminateSessionPersistsCompletedSession() async throws {
         let clock = QuickActionTestClock(start: Date(timeIntervalSince1970: 70_000))
         let engine = SessionTimerEngine(now: { clock.now })
         let repository = InMemoryFeedingSessionRepository()
@@ -65,17 +54,17 @@ final class LiveActivityQuickActionHandlerTests: XCTestCase {
         try await handler.handle(.startLeft)
         clock.advance(seconds: 18)
 
-        let ended = try await handler.handle(.endSession, note: "ended from dynamic island")
+        let ended = try await handler.handle(.terminateSession, note: "ended from live activity")
         let session = try XCTUnwrap(ended)
         let persisted = try await repository.fetch(id: session.id)
 
         XCTAssertEqual(session.status, .completed)
         XCTAssertEqual(session.totalDuration, 18, accuracy: 0.001)
-        XCTAssertEqual(session.note, "ended from dynamic island")
+        XCTAssertEqual(session.note, "ended from live activity")
         XCTAssertEqual(persisted?.id, session.id)
     }
 
-    func testStartAfterEndedSessionThrowsExplicitError() async throws {
+    func testTerminateIsIdempotentAfterEndedAndDoesNotMutateState() async throws {
         let clock = QuickActionTestClock(start: Date(timeIntervalSince1970: 80_000))
         let engine = SessionTimerEngine(now: { clock.now })
         let repository = InMemoryFeedingSessionRepository()
@@ -83,33 +72,55 @@ final class LiveActivityQuickActionHandlerTests: XCTestCase {
 
         try await handler.handle(.startLeft)
         clock.advance(seconds: 5)
-        _ = try await handler.handle(.endSession)
+        let first = try await handler.handle(.terminateSession)
+        XCTAssertNotNil(first)
 
-        await XCTAssertThrowsErrorAsync(try await handler.handle(.startRight)) { error in
-            XCTAssertEqual(error as? LiveActivityQuickActionError, .cannotStartAfterSessionEnded)
-        }
+        let second = try await handler.handle(.terminateSession)
+        XCTAssertNil(second)
+
+        let snapshot = handler.currentState()
+        XCTAssertEqual(snapshot.timerStatus, .ended)
+        XCTAssertNil(snapshot.activeSide)
+
+        let all = try await repository.fetchAll()
+        XCTAssertEqual(all.count, 1)
     }
 
-    func testCurrentStateMapsTimerStatus() async throws {
-        let clock = QuickActionTestClock(start: Date(timeIntervalSince1970: 90_000))
+    func testSwitchSideThrowsWhenSessionNotStarted() async {
+        let clock = QuickActionTestClock(start: Date(timeIntervalSince1970: 81_000))
         let engine = SessionTimerEngine(now: { clock.now })
         let repository = InMemoryFeedingSessionRepository()
         let handler = LiveActivityQuickActionHandler(engine: engine, repository: repository)
 
-        XCTAssertEqual(handler.currentState().timerStatus, .idle)
+        await XCTAssertThrowsErrorAsync(try await handler.handle(.switchSide)) { error in
+            XCTAssertEqual(error as? LiveActivityQuickActionError, .cannotSwitchWithoutStartedSession)
+        }
+    }
+
+    func testActionInFlightGuardSkipsConcurrentMutation() async throws {
+        let clock = QuickActionTestClock(start: Date(timeIntervalSince1970: 82_000))
+        let engine = SessionTimerEngine(now: { clock.now })
+        let repository = DelayedUpsertRepository(delayNanoseconds: 300_000_000)
+        let handler = LiveActivityQuickActionHandler(engine: engine, repository: repository)
 
         try await handler.handle(.startLeft)
-        XCTAssertEqual(handler.currentState().timerStatus, .running)
+        clock.advance(seconds: 9)
 
-        try engine.pause()
-        XCTAssertEqual(handler.currentState().timerStatus, .paused)
+        let terminateTask = Task {
+            try await handler.handle(.terminateSession)
+        }
 
-        try engine.resume()
-        try engine.stopCurrentSide()
-        XCTAssertEqual(handler.currentState().timerStatus, .stopped)
+        await Task.yield()
+        let skipped = try await handler.handle(.switchSide)
+        XCTAssertNil(skipped)
 
-        _ = try await handler.handle(.endSession)
-        XCTAssertEqual(handler.currentState().timerStatus, .ended)
+        let terminated = try await terminateTask.value
+        XCTAssertNotNil(terminated)
+
+        let snapshot = handler.currentState()
+        XCTAssertEqual(snapshot.timerStatus, .ended)
+        let all = try await repository.fetchAll()
+        XCTAssertEqual(all.count, 1)
     }
 
     func testHandleURLParsesRouterDeepLinkAndExecutesAction() async throws {
@@ -120,9 +131,10 @@ final class LiveActivityQuickActionHandlerTests: XCTestCase {
         let handler = LiveActivityQuickActionHandler(engine: engine, repository: repository, router: router)
 
         try await handler.handle(url: router.url(for: .startRight))
+        try await handler.handle(url: router.url(for: .switchSide))
 
         let state = handler.currentState()
-        XCTAssertEqual(state.activeSide, .right)
+        XCTAssertEqual(state.activeSide, .left)
         XCTAssertEqual(state.timerStatus, .running)
     }
 
@@ -146,6 +158,13 @@ final class LiveActivityQuickActionHandlerTests: XCTestCase {
             XCTAssertEqual(router.action(from: url), action)
         }
     }
+
+    func testAttributesExposeMVP02ParityActionURLs() {
+        let attrs = FeedTrackerLiveActivityAttributes(sessionID: UUID())
+        XCTAssertTrue(attrs.switchSideActionURL.contains("action=switch_side"))
+        XCTAssertTrue(attrs.pauseSessionActionURL.contains("action=pause_session"))
+        XCTAssertTrue(attrs.terminateSessionActionURL.contains("action=terminate_session"))
+    }
 }
 
 private final class QuickActionTestClock {
@@ -157,6 +176,32 @@ private final class QuickActionTestClock {
 
     func advance(seconds: TimeInterval) {
         now = now.addingTimeInterval(seconds)
+    }
+}
+
+private actor DelayedUpsertRepository: FeedingSessionRepository {
+    private var sessions: [UUID: FeedingSession] = [:]
+    private let delayNanoseconds: UInt64
+
+    init(delayNanoseconds: UInt64) {
+        self.delayNanoseconds = delayNanoseconds
+    }
+
+    func fetchAll() async throws -> [FeedingSession] {
+        sessions.values.sorted { ($0.endedAt ?? $0.startedAt) > ($1.endedAt ?? $1.startedAt) }
+    }
+
+    func fetch(id: UUID) async throws -> FeedingSession? {
+        sessions[id]
+    }
+
+    func upsert(_ session: FeedingSession) async throws {
+        try await Task.sleep(nanoseconds: delayNanoseconds)
+        sessions[session.id] = session
+    }
+
+    func remove(id: UUID) async throws {
+        sessions.removeValue(forKey: id)
     }
 }
 
