@@ -1,6 +1,12 @@
 import Foundation
 
 public enum LiveActivityQuickAction: String, CaseIterable, Equatable, Sendable, Codable {
+    // Release r2026.03.01 required surface actions
+    case switchSide = "switch_side"
+    case pauseSession = "pause_session"
+    case terminateSession = "terminate_session"
+
+    // Backward-compatible actions used by existing deep links/tests
     case startLeft = "start_left"
     case startRight = "start_right"
     case endSession = "end_session"
@@ -8,7 +14,7 @@ public enum LiveActivityQuickAction: String, CaseIterable, Equatable, Sendable, 
 
 public enum LiveActivityQuickActionError: Error, Equatable, Sendable {
     case cannotStartAfterSessionEnded
-    case cannotEndWithoutStartedSession
+    case cannotSwitchWithoutStartedSession
     case unsupportedDeepLink
 }
 
@@ -18,6 +24,8 @@ public final class LiveActivityQuickActionHandler {
     private let repository: any FeedingSessionRepository
     private let router: any LiveActivityQuickActionRouting
     private let diagnostics: (any DiagnosticsLogging)?
+
+    private var isActionInFlight = false
 
     public init(
         engine: SessionTimerEngine,
@@ -33,45 +41,67 @@ public final class LiveActivityQuickActionHandler {
 
     @discardableResult
     public func handle(_ action: LiveActivityQuickAction, note: String? = nil) async throws -> FeedingSession? {
+        guard isActionInFlight == false else {
+            diagnostics?.record(
+                category: "live_activity",
+                action: "guard_in_flight_skip",
+                metadata: ["requestedAction": action.rawValue],
+                source: "live_activity_handler"
+            )
+            return nil
+        }
+
+        isActionInFlight = true
+        defer { isActionInFlight = false }
+
         do {
             switch action {
+            case .switchSide:
+                try handleSwitchSide()
+                diagnostics?.record(
+                    category: "live_activity",
+                    action: "switch_side",
+                    metadata: ["state": stateLabel(engine.snapshot().state)],
+                    source: "live_activity_handler"
+                )
+                return nil
+
+            case .pauseSession:
+                try handlePause()
+                diagnostics?.record(
+                    category: "live_activity",
+                    action: "pause_session",
+                    metadata: ["state": stateLabel(engine.snapshot().state)],
+                    source: "live_activity_handler"
+                )
+                return nil
+
+            case .terminateSession:
+                return try await handleTerminate(note: note)
+
             case .startLeft:
                 try startOrSwitch(to: .left)
                 diagnostics?.record(
                     category: "live_activity",
                     action: "start_left",
-                    metadata: [:],
+                    metadata: ["state": stateLabel(engine.snapshot().state)],
                     source: "live_activity_handler"
                 )
                 return nil
+
             case .startRight:
                 try startOrSwitch(to: .right)
                 diagnostics?.record(
                     category: "live_activity",
                     action: "start_right",
-                    metadata: [:],
+                    metadata: ["state": stateLabel(engine.snapshot().state)],
                     source: "live_activity_handler"
                 )
                 return nil
+
             case .endSession:
-                let session = try engine.endSession(note: note)
-                try await repository.upsert(session)
-                diagnostics?.record(
-                    category: "live_activity",
-                    action: "end_session",
-                    metadata: ["sessionID": session.id.uuidString],
-                    source: "live_activity_handler"
-                )
-                return session
+                return try await handleTerminate(note: note)
             }
-        } catch SessionTimerEngineError.sessionNotStarted {
-            diagnostics?.recordError(
-                context: "live_activity.end_session",
-                message: SessionTimerEngineError.sessionNotStarted.localizedDescription,
-                metadata: [:],
-                source: "live_activity_handler"
-            )
-            throw LiveActivityQuickActionError.cannotEndWithoutStartedSession
         } catch {
             diagnostics?.recordError(
                 context: "live_activity.handle",
@@ -102,6 +132,80 @@ public final class LiveActivityQuickActionHandler {
         LiveActivityState(snapshot: engine.snapshot(at: date))
     }
 
+    private func handleSwitchSide() throws {
+        let state = engine.snapshot().state
+
+        switch state {
+        case .running(let active):
+            try engine.switch(to: active == .left ? .right : .left)
+
+        case .paused(let paused):
+            try engine.resume()
+            try engine.switch(to: paused == .left ? .right : .left)
+
+        case .stopped:
+            try engine.start(.left)
+
+        case .idle:
+            throw LiveActivityQuickActionError.cannotSwitchWithoutStartedSession
+
+        case .ended:
+            diagnostics?.record(
+                category: "live_activity",
+                action: "switch_side_ignored_terminal",
+                metadata: [:],
+                source: "live_activity_handler"
+            )
+            return
+        }
+    }
+
+    private func handlePause() throws {
+        let state = engine.snapshot().state
+
+        switch state {
+        case .running:
+            try engine.pause()
+
+        case .paused:
+            // idempotent pause
+            return
+
+        case .idle, .stopped, .ended:
+            diagnostics?.record(
+                category: "live_activity",
+                action: "pause_ignored",
+                metadata: ["state": stateLabel(state)],
+                source: "live_activity_handler"
+            )
+            return
+        }
+    }
+
+    @discardableResult
+    private func handleTerminate(note: String?) async throws -> FeedingSession? {
+        let state = engine.snapshot().state
+        guard state != .idle, state != .ended else {
+            diagnostics?.record(
+                category: "live_activity",
+                action: "terminate_ignored",
+                metadata: ["state": stateLabel(state)],
+                source: "live_activity_handler"
+            )
+            return nil
+        }
+
+        let session = try engine.endSession(note: note)
+        try await repository.upsert(session)
+        diagnostics?.record(
+            category: "live_activity",
+            action: "terminate_session",
+            metadata: ["sessionID": session.id.uuidString],
+            source: "live_activity_handler"
+        )
+        return session
+    }
+
     private func startOrSwitch(to requestedSide: FeedingSide) throws {
         let state = engine.snapshot().state
 
@@ -120,6 +224,21 @@ public final class LiveActivityQuickActionHandler {
 
         case .ended:
             throw LiveActivityQuickActionError.cannotStartAfterSessionEnded
+        }
+    }
+
+    private func stateLabel(_ state: SessionTimerState) -> String {
+        switch state {
+        case .idle:
+            return "idle"
+        case .running(let side):
+            return "running_\(side.rawValue)"
+        case .paused(let side):
+            return "paused_\(side.rawValue)"
+        case .stopped:
+            return "stopped"
+        case .ended:
+            return "ended"
         }
     }
 }

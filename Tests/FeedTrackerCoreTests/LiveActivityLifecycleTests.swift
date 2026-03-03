@@ -61,6 +61,35 @@ final class LiveActivityLifecycleTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(controller.endCount, 1)
     }
 
+    func testTerminalReconcileIsIdempotentAndLogsConsistencyEvents() throws {
+        let clock = LiveActivityTestClock(start: Date(timeIntervalSince1970: 135_000))
+        let engine = SessionTimerEngine(now: { clock.now })
+        let controller = SpyLiveActivityController()
+        let diagnostics = DiagnosticsSpy()
+        let coordinator = LiveActivityLifecycleCoordinator(
+            controller: controller,
+            now: { clock.now },
+            diagnostics: diagnostics
+        )
+
+        try engine.start(.left)
+        coordinator.reconcile(snapshot: engine.snapshot(), source: "running")
+        _ = try engine.endSession(note: nil)
+
+        coordinator.reconcile(snapshot: engine.snapshot(), source: "ended-1")
+        coordinator.reconcile(snapshot: engine.snapshot(), source: "ended-2")
+
+        XCTAssertFalse(controller.isActive)
+        XCTAssertEqual(controller.startCount, 1)
+        XCTAssertGreaterThanOrEqual(controller.endCount, 1)
+
+        let events = diagnostics.events
+        let startEvents = events.filter { $0.action == "start" }
+        let endEvents = events.filter { $0.action == "end" }
+        XCTAssertEqual(startEvents.count, 1)
+        XCTAssertGreaterThanOrEqual(endEvents.count, 1)
+    }
+
     func testCompactTimerProjectionStaysContinuousFromCapturedCheckpoint() {
         let now = Date(timeIntervalSince1970: 140_000)
         let state = FeedTrackerLiveActivityContentState(
@@ -108,6 +137,34 @@ private final class SpyLiveActivityController: LiveActivityControlling {
     func end() {
         isActive = false
         endCount += 1
+    }
+}
+
+private struct DiagnosticsRecord {
+    let category: String
+    let action: String
+}
+
+private final class DiagnosticsSpy: @unchecked Sendable, DiagnosticsLogging {
+    private let lock = NSLock()
+    private var storage: [DiagnosticsRecord] = []
+
+    var events: [DiagnosticsRecord] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
+
+    func record(category: String, action: String, metadata _: [String: String], source _: String) {
+        lock.lock()
+        storage.append(DiagnosticsRecord(category: category, action: action))
+        lock.unlock()
+    }
+
+    func recordError(context: String, message _: String, metadata _: [String: String], source _: String) {
+        lock.lock()
+        storage.append(DiagnosticsRecord(category: "error", action: context))
+        lock.unlock()
     }
 }
 

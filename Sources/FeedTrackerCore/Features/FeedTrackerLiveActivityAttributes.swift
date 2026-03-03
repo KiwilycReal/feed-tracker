@@ -35,6 +35,13 @@ public struct FeedTrackerLiveActivityAttributes: ActivityAttributes {
     public typealias ContentState = FeedTrackerLiveActivityContentState
 
     public let sessionID: String
+
+    // MVP-02 parity action URLs (expanded island + lock screen)
+    public let switchSideActionURL: String
+    public let pauseSessionActionURL: String
+    public let terminateSessionActionURL: String
+
+    // Backward-compatible URLs
     public let startLeftActionURL: String
     public let startRightActionURL: String
     public let endSessionActionURL: String
@@ -44,6 +51,10 @@ public struct FeedTrackerLiveActivityAttributes: ActivityAttributes {
         actionRouter: any LiveActivityQuickActionRouting = LiveActivityQuickActionRouter()
     ) {
         self.sessionID = sessionID.uuidString
+        self.switchSideActionURL = actionRouter.url(for: .switchSide).absoluteString
+        self.pauseSessionActionURL = actionRouter.url(for: .pauseSession).absoluteString
+        self.terminateSessionActionURL = actionRouter.url(for: .terminateSession).absoluteString
+
         self.startLeftActionURL = actionRouter.url(for: .startLeft).absoluteString
         self.startRightActionURL = actionRouter.url(for: .startRight).absoluteString
         self.endSessionActionURL = actionRouter.url(for: .endSession).absoluteString
@@ -54,6 +65,11 @@ public struct FeedTrackerLiveActivityAttributes: Sendable {
     public typealias ContentState = FeedTrackerLiveActivityContentState
 
     public let sessionID: String
+
+    public let switchSideActionURL: String
+    public let pauseSessionActionURL: String
+    public let terminateSessionActionURL: String
+
     public let startLeftActionURL: String
     public let startRightActionURL: String
     public let endSessionActionURL: String
@@ -63,6 +79,10 @@ public struct FeedTrackerLiveActivityAttributes: Sendable {
         actionRouter: any LiveActivityQuickActionRouting = LiveActivityQuickActionRouter()
     ) {
         self.sessionID = sessionID.uuidString
+        self.switchSideActionURL = actionRouter.url(for: .switchSide).absoluteString
+        self.pauseSessionActionURL = actionRouter.url(for: .pauseSession).absoluteString
+        self.terminateSessionActionURL = actionRouter.url(for: .terminateSession).absoluteString
+
         self.startLeftActionURL = actionRouter.url(for: .startLeft).absoluteString
         self.startRightActionURL = actionRouter.url(for: .startRight).absoluteString
         self.endSessionActionURL = actionRouter.url(for: .endSession).absoluteString
