@@ -1,5 +1,34 @@
 default_platform(:ios)
 
+private_lane :ensure_portal_app_identifier do |options|
+  bundle_id = options[:bundle_id].to_s.strip
+  app_name = options[:app_name].to_s.strip
+  return if bundle_id.empty?
+
+  username = ENV["APPLE_ID"].to_s.strip
+  if username.empty?
+    UI.user_error!("APPLE_ID is required to create missing app identifier: #{bundle_id}")
+  end
+
+  begin
+    UI.important("Ensuring app identifier exists in Apple Developer portal: #{bundle_id}")
+    produce(
+      username: username,
+      app_identifier: bundle_id,
+      app_name: app_name.empty? ? bundle_id : app_name,
+      skip_itc: true,
+      skip_devcenter: false
+    )
+  rescue => error
+    message = error.to_s
+    if message.include?("already") || message.include?("taken")
+      UI.message("App identifier already exists or reserved: #{bundle_id}")
+    else
+      raise error
+    end
+  end
+end
+
 platform :ios do
   desc "Build and upload iOS app to TestFlight"
   lane :testflight do
@@ -62,6 +91,11 @@ platform :ios do
     match_readonly = ENV.fetch("MATCH_READONLY", "true").strip.downcase == "true"
 
     UI.message("Using match readonly=#{match_readonly}")
+
+    ensure_portal_app_identifier(
+      bundle_id: extension_bundle_id,
+      app_name: "FeedTracker Live Activity"
+    )
 
     match(
       type: "appstore",
