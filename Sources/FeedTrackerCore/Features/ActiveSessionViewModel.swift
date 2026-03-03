@@ -35,6 +35,7 @@ public final class ActiveSessionViewModel: ObservableObject {
     private let repository: any FeedingSessionRepository
     private let diagnostics: (any DiagnosticsLogging)?
     private let recoveryStore: (any ActiveSessionRecoveryStoring)?
+    private let liveActivityCoordinator: (any LiveActivityLifecycleCoordinating)?
 
     @Published public private(set) var displayState: ActiveSessionDisplayState
 
@@ -42,16 +43,19 @@ public final class ActiveSessionViewModel: ObservableObject {
         engine: SessionTimerEngine,
         repository: any FeedingSessionRepository,
         diagnostics: (any DiagnosticsLogging)? = nil,
-        recoveryStore: (any ActiveSessionRecoveryStoring)? = nil
+        recoveryStore: (any ActiveSessionRecoveryStoring)? = nil,
+        liveActivityCoordinator: (any LiveActivityLifecycleCoordinating)? = nil
     ) {
         self.engine = engine
         self.repository = repository
         self.diagnostics = diagnostics
         self.recoveryStore = recoveryStore
+        self.liveActivityCoordinator = liveActivityCoordinator
         self.displayState = .idle
 
         restoreRecoveredState()
         self.displayState = ActiveSessionDisplayState(snapshot: engine.snapshot())
+        syncLiveActivity(source: "active_session_vm.init")
     }
 
     public func refresh(at date: Date? = nil) {
@@ -63,6 +67,7 @@ public final class ActiveSessionViewModel: ObservableObject {
             try engine.start(side)
             refresh()
             persistRecoveryState(context: "session.start")
+            syncLiveActivity(source: "active_session_vm.start")
             diagnostics?.record(
                 category: "session",
                 action: "start",
@@ -88,6 +93,7 @@ public final class ActiveSessionViewModel: ObservableObject {
             try engine.switch(to: side)
             refresh()
             persistRecoveryState(context: "session.switch_side")
+            syncLiveActivity(source: "active_session_vm.switch_side")
             diagnostics?.record(
                 category: "session",
                 action: "switch_side",
@@ -113,6 +119,7 @@ public final class ActiveSessionViewModel: ObservableObject {
             try engine.pause()
             refresh()
             persistRecoveryState(context: "session.pause")
+            syncLiveActivity(source: "active_session_vm.pause")
             diagnostics?.record(
                 category: "session",
                 action: "pause",
@@ -135,6 +142,7 @@ public final class ActiveSessionViewModel: ObservableObject {
             try engine.resume()
             refresh()
             persistRecoveryState(context: "session.resume")
+            syncLiveActivity(source: "active_session_vm.resume")
             diagnostics?.record(
                 category: "session",
                 action: "resume",
@@ -157,6 +165,7 @@ public final class ActiveSessionViewModel: ObservableObject {
             try engine.stopCurrentSide()
             refresh()
             persistRecoveryState(context: "session.stop_current_side")
+            syncLiveActivity(source: "active_session_vm.stop_current_side")
             diagnostics?.record(
                 category: "session",
                 action: "stop_current_side",
@@ -181,6 +190,7 @@ public final class ActiveSessionViewModel: ObservableObject {
             try await repository.upsert(session)
             refresh()
             persistRecoveryState(context: "session.end")
+            syncLiveActivity(source: "active_session_vm.end")
             diagnostics?.record(
                 category: "persistence",
                 action: "save_completed_session",
@@ -271,6 +281,10 @@ public final class ActiveSessionViewModel: ObservableObject {
                 source: "active_session_vm"
             )
         }
+    }
+
+    private func syncLiveActivity(source: String) {
+        liveActivityCoordinator?.reconcile(snapshot: engine.snapshot(), source: source)
     }
 
     private func sessionStateLabel(_ state: SessionTimerState) -> String {
