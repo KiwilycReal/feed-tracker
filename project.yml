@@ -25,10 +25,32 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        INFOPLIST_KEY_NSSupportsLiveActivities: YES
         SWIFT_VERSION: 5.0
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 0.1.0
         CODE_SIGN_STYLE: Automatic
+    dependencies:
+      - package: FeedTrackerCorePkg
+        product: FeedTrackerCore
+      - target: FeedTrackerLiveActivityWidgetExtension
+        embed: true
+
+  FeedTrackerLiveActivityWidgetExtension:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: LiveActivityWidgetExtension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kiwilyc.feedtracker.LiveActivityWidgetExtension
+        INFOPLIST_FILE: LiveActivityWidgetExtension/Info.plist
+        SWIFT_VERSION: 5.0
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 0.1.0
+        CODE_SIGN_STYLE: Automatic
+        APPLICATION_EXTENSION_API_ONLY: YES
     dependencies:
       - package: FeedTrackerCorePkg
         product: FeedTrackerCore
@@ -38,6 +60,7 @@ schemes:
     build:
       targets:
         FeedTracker: all
+        FeedTrackerLiveActivityWidgetExtension: all
     run:
       config: Debug
     archive:

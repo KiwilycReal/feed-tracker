@@ -43,6 +43,7 @@ final class FeedTrackerDependencies {
     let diagnosticsLogger: DiagnosticsEventLogger
     let activeSessionRecoveryStore: any ActiveSessionRecoveryStoring
     let liveActivityCoordinator: any LiveActivityLifecycleCoordinating
+    let quickActionHandler: LiveActivityQuickActionHandler
 
     init() {
         self.engine = SessionTimerEngine()
@@ -63,6 +64,11 @@ final class FeedTrackerDependencies {
         let controller = FeedTrackerDependencies.makeLiveActivityController()
         self.liveActivityCoordinator = LiveActivityLifecycleCoordinator(
             controller: controller,
+            diagnostics: diagnosticsLogger
+        )
+        self.quickActionHandler = LiveActivityQuickActionHandler(
+            engine: engine,
+            repository: repository,
             diagnostics: diagnosticsLogger
         )
     }
@@ -98,6 +104,20 @@ final class FeedTrackerDependencies {
             reconcileLiveActivity(source: "app.scene.background")
         @unknown default:
             reconcileLiveActivity(source: "app.scene.unknown")
+        }
+    }
+
+    func handleLiveActivityURL(_ url: URL) async {
+        do {
+            _ = try await quickActionHandler.handle(url: url)
+            reconcileLiveActivity(source: "app.url.live_activity")
+        } catch {
+            diagnosticsLogger.recordError(
+                context: "live_activity.url",
+                message: error.localizedDescription,
+                metadata: ["url": url.absoluteString],
+                source: "ios-app"
+            )
         }
     }
 }
@@ -152,6 +172,11 @@ struct FeedTrackerApp: App {
             }
             .onChange(of: scenePhase) { _, newPhase in
                 deps.handleScenePhase(newPhase)
+            }
+            .onOpenURL { url in
+                Task {
+                    await deps.handleLiveActivityURL(url)
+                }
             }
         }
     }
