@@ -42,6 +42,7 @@ final class FeedTrackerDependencies {
     let repository: any FeedingSessionRepository
     let diagnosticsLogger: DiagnosticsEventLogger
     let activeSessionRecoveryStore: any ActiveSessionRecoveryStoring
+    let liveActivityCoordinator: any LiveActivityLifecycleCoordinating
 
     init() {
         self.engine = SessionTimerEngine()
@@ -58,6 +59,21 @@ final class FeedTrackerDependencies {
         } else {
             self.repository = InMemoryFeedingSessionRepository()
         }
+
+        let controller = FeedTrackerDependencies.makeLiveActivityController()
+        self.liveActivityCoordinator = LiveActivityLifecycleCoordinator(
+            controller: controller,
+            diagnostics: diagnosticsLogger
+        )
+    }
+
+    private static func makeLiveActivityController() -> any LiveActivityControlling {
+#if canImport(ActivityKit)
+        if #available(iOS 17.0, *) {
+            return ActivityKitLiveActivityController()
+        }
+#endif
+        return NoopLiveActivityController()
     }
 
     var appVersion: String {
@@ -66,6 +82,23 @@ final class FeedTrackerDependencies {
 
     var buildNumber: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
+    }
+
+    func reconcileLiveActivity(source: String) {
+        liveActivityCoordinator.reconcile(snapshot: engine.snapshot(), source: source)
+    }
+
+    func handleScenePhase(_ phase: ScenePhase) {
+        switch phase {
+        case .active:
+            reconcileLiveActivity(source: "app.scene.active")
+        case .inactive:
+            reconcileLiveActivity(source: "app.scene.inactive")
+        case .background:
+            reconcileLiveActivity(source: "app.scene.background")
+        @unknown default:
+            reconcileLiveActivity(source: "app.scene.unknown")
+        }
     }
 }
 
@@ -89,6 +122,7 @@ enum DeviceModel {
 @main
 @MainActor
 struct FeedTrackerApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     private let deps = FeedTrackerDependencies()
 
     var body: some Scene {
@@ -98,7 +132,8 @@ struct FeedTrackerApp: App {
                     engine: deps.engine,
                     repository: deps.repository,
                     diagnostics: deps.diagnosticsLogger,
-                    recoveryStore: deps.activeSessionRecoveryStore
+                    recoveryStore: deps.activeSessionRecoveryStore,
+                    liveActivityCoordinator: deps.liveActivityCoordinator
                 ),
                 historyViewModel: HistoryListViewModel(
                     repository: deps.repository,
@@ -112,6 +147,12 @@ struct FeedTrackerApp: App {
                     sourceTag: "ios-app"
                 )
             )
+            .onAppear {
+                deps.reconcileLiveActivity(source: "app.launch")
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                deps.handleScenePhase(newPhase)
+            }
         }
     }
 }
