@@ -11,7 +11,7 @@ on:
       deploy_command:
         description: Optional deploy command override
         required: false
-        default: bundle exec fastlane ios testflight
+        default: bundle exec fastlane ios testflight_release
         type: string
 
 concurrency:
@@ -42,5 +42,5 @@ jobs:
     with:
       checkout_ref: ${{ github.event.inputs.ref || 'main' }}
       environment_name: prod
-      deploy_command: ${{ github.event.inputs.deploy_command || 'bundle exec fastlane ios testflight' }}
+      deploy_command: ${{ github.event.inputs.deploy_command || 'bundle exec fastlane ios testflight_release' }}
     secrets: inherit
