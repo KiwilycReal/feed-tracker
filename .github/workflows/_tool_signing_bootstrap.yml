@@ -1,4 +1,4 @@
-name: Tool - Deploy TestFlight
+name: Tool - Signing Bootstrap
 
 on:
   workflow_call:
@@ -8,19 +8,19 @@ on:
         required: false
         type: string
       environment_name:
-        description: Environment name that holds deploy secrets
+        description: Environment name that holds bootstrap secrets
         required: false
         default: prod
         type: string
-      deploy_command:
-        description: Command used to deploy to TestFlight
+      bootstrap_command:
+        description: Command used to run signing bootstrap lane
         required: false
-        default: bundle exec fastlane ios testflight_release
+        default: bundle exec fastlane ios signing_bootstrap
         type: string
 
 jobs:
-  deploy:
-    name: deploy-testflight
+  signing-bootstrap:
+    name: signing-bootstrap
     runs-on: macos-15
     timeout-minutes: 35
     environment: ${{ inputs.environment_name }}
@@ -55,45 +55,56 @@ jobs:
           ruby-version: '3.2'
           bundler-cache: true
 
-      - name: Validate deploy prerequisites
+      - name: Validate bootstrap prerequisites
         shell: bash
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          FASTLANE_SESSION: ${{ secrets.FASTLANE_SESSION }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          MATCH_GIT_URL: ${{ vars.MATCH_GIT_URL }}
         run: |
           set -euo pipefail
-          if [ ! -f "fastlane/Fastfile" ]; then
-            echo "::error::fastlane/Fastfile not found. Configure fastlane lanes before release deploy."
+          required=(
+            APP_STORE_CONNECT_API_KEY_ID
+            APP_STORE_CONNECT_API_ISSUER_ID
+            APP_STORE_CONNECT_API_KEY_BASE64
+            APPLE_TEAM_ID
+            APPLE_ID
+            FASTLANE_SESSION
+            MATCH_PASSWORD
+            MATCH_GIT_BASIC_AUTHORIZATION
+            KEYCHAIN_PASSWORD
+            MATCH_GIT_URL
+          )
+          missing=()
+          for key in "${required[@]}"; do
+            if [ -z "${!key:-}" ]; then
+              missing+=("$key")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Missing bootstrap keys: ${missing[*]}"
             exit 1
           fi
 
-      - name: Validate release contract (readonly lane)
+      - name: Run signing bootstrap lane
         env:
           APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
           APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
           APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          FASTLANE_SESSION: ${{ secrets.FASTLANE_SESSION }}
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-          CI_XCODE_WORKSPACE: ${{ vars.CI_XCODE_WORKSPACE }}
-          CI_XCODE_PROJECT: ${{ vars.CI_XCODE_PROJECT }}
-          CI_XCODE_SCHEME: ${{ vars.CI_XCODE_SCHEME }}
           MATCH_GIT_URL: ${{ vars.MATCH_GIT_URL }}
           CI_SIGNING_CONFIG_PATH: ${{ vars.CI_SIGNING_CONFIG_PATH }}
-        run: scripts/ci/validate_release_contract.sh
-
-      - name: Deploy to TestFlight (readonly)
-        env:
-          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
-          APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-          MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-          CI_XCODE_WORKSPACE: ${{ vars.CI_XCODE_WORKSPACE }}
-          CI_XCODE_PROJECT: ${{ vars.CI_XCODE_PROJECT }}
-          CI_XCODE_SCHEME: ${{ vars.CI_XCODE_SCHEME }}
-          CI_APP_IDENTIFIER: ${{ vars.CI_APP_IDENTIFIER }}
-          MATCH_GIT_URL: ${{ vars.MATCH_GIT_URL }}
-          MATCH_READONLY: ${{ vars.MATCH_READONLY }}
-          CI_SIGNING_CONFIG_PATH: ${{ vars.CI_SIGNING_CONFIG_PATH }}
-        run: ${{ inputs.deploy_command }}
+        run: ${{ inputs.bootstrap_command }}
