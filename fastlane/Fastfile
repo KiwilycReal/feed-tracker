@@ -5,7 +5,8 @@ require "shellwords"
 default_platform(:ios)
 
 def load_signing_config!
-  path = ENV.fetch("CI_SIGNING_CONFIG_PATH", "ci/signing-targets.json")
+  path = ENV.fetch("CI_SIGNING_CONFIG_PATH", "").to_s.strip
+  path = "ci/signing-targets.json" if path.empty?
   UI.user_error!("Signing config not found: #{path}") unless File.exist?(path)
 
   config = JSON.parse(File.read(path))
@@ -209,17 +210,23 @@ platform :ios do
     match_readonly = ENV.fetch("MATCH_READONLY", "true").strip.downcase == "true"
     UI.user_error!("Readonly release lane requires MATCH_READONLY=true") unless match_readonly
 
-    match(
-      type: "appstore",
-      app_identifier: bundle_ids,
-      readonly: true,
-      git_url: ENV["MATCH_GIT_URL"],
-      api_key: api_key,
-      git_basic_authorization: ENV["MATCH_GIT_BASIC_AUTHORIZATION"],
-      keychain_name: "fastlane_tmp.keychain",
-      keychain_password: ENV["KEYCHAIN_PASSWORD"],
-      team_id: ENV["APPLE_TEAM_ID"]
-    )
+    begin
+      match(
+        type: "appstore",
+        app_identifier: bundle_ids,
+        readonly: true,
+        git_url: ENV["MATCH_GIT_URL"],
+        api_key: api_key,
+        git_basic_authorization: ENV["MATCH_GIT_BASIC_AUTHORIZATION"],
+        keychain_name: "fastlane_tmp.keychain",
+        keychain_password: ENV["KEYCHAIN_PASSWORD"],
+        team_id: ENV["APPLE_TEAM_ID"]
+      )
+    rescue => _error
+      UI.user_error!(
+        "ERROR_ONE_LINE: signing profiles are not ready for current bundle IDs | ACTION: run signing-bootstrap workflow once, then re-run release workflow."
+      )
+    end
 
     run_signing_readiness_check!(config_path: config_path, mode: "profiles")
 

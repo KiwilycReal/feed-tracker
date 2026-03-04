@@ -94,6 +94,6 @@ jobs:
           CI_XCODE_SCHEME: ${{ vars.CI_XCODE_SCHEME }}
           CI_APP_IDENTIFIER: ${{ vars.CI_APP_IDENTIFIER }}
           MATCH_GIT_URL: ${{ vars.MATCH_GIT_URL }}
-          MATCH_READONLY: ${{ vars.MATCH_READONLY }}
+          MATCH_READONLY: true
           CI_SIGNING_CONFIG_PATH: ${{ vars.CI_SIGNING_CONFIG_PATH }}
         run: ${{ inputs.deploy_command }}
