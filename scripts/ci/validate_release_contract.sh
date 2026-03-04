@@ -49,4 +49,4 @@ if [[ ! -f "$config_path" ]]; then
   exit 1
 fi
 
-echo "Release contract validation passed. FASTLANE_SESSION is not required for readonly release lane."
+echo "Release contract validation passed for readonly release lane."

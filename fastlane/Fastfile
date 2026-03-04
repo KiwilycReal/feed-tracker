@@ -90,94 +90,8 @@ def run_signing_readiness_check!(config_path:, mode:)
   sh("python3 #{quoted_script} --config #{quoted_path} --mode #{quoted_mode} --repo-root #{Shellwords.escape(repo_root)}")
 end
 
-def ensure_portal_app_identifier!(bundle_id:, app_name:)
-  username = ENV.fetch("APPLE_ID", "").strip
-  UI.user_error!("APPLE_ID is required for signing bootstrap lane") if username.empty?
-
-  begin
-    produce(
-      username: username,
-      app_identifier: bundle_id,
-      app_name: app_name,
-      skip_itc: true,
-      skip_devcenter: false
-    )
-  rescue => error
-    message = error.to_s
-    if message.include?("already") || message.include?("taken")
-      UI.message("Portal app identifier already exists: #{bundle_id}")
-    else
-      raise error
-    end
-  end
-end
-
 platform :ios do
-  desc "Bootstrap signing resources (portal app IDs + profiles). Human-invoked rare lane."
-  lane :signing_bootstrap do
-    assert_required_env!(
-      %w[
-        APP_STORE_CONNECT_API_KEY_ID
-        APP_STORE_CONNECT_API_ISSUER_ID
-        APP_STORE_CONNECT_API_KEY_BASE64
-        APPLE_TEAM_ID
-        APPLE_ID
-        FASTLANE_SESSION
-        MATCH_PASSWORD
-        MATCH_GIT_BASIC_AUTHORIZATION
-        KEYCHAIN_PASSWORD
-        MATCH_GIT_URL
-      ],
-      "signing_bootstrap"
-    )
-
-    config_path, config = load_signing_config!
-    bundle_ids = configured_bundle_ids(config)
-
-    run_signing_readiness_check!(config_path: config_path, mode: "config")
-
-    api_key = app_store_connect_api_key(
-      key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
-      issuer_id: ENV["APP_STORE_CONNECT_API_ISSUER_ID"],
-      key_content: Base64.decode64(ENV["APP_STORE_CONNECT_API_KEY_BASE64"]),
-      is_key_content_base64: false,
-      in_house: false
-    )
-
-    create_keychain(
-      name: "fastlane_tmp.keychain",
-      password: ENV["KEYCHAIN_PASSWORD"],
-      default_keychain: true,
-      unlock: true,
-      timeout: 3600,
-      lock_when_sleeps: true
-    )
-
-    config.fetch("targets", []).each do |target|
-      bundle_id = target.fetch("bundle_id")
-      app_name = target.fetch("target", bundle_id)
-      UI.important("Ensuring portal app identifier: #{bundle_id}")
-      ensure_portal_app_identifier!(bundle_id: bundle_id, app_name: app_name)
-    end
-
-    match(
-      type: "appstore",
-      app_identifier: bundle_ids,
-      readonly: false,
-      git_url: ENV["MATCH_GIT_URL"],
-      api_key: api_key,
-      git_basic_authorization: ENV["MATCH_GIT_BASIC_AUTHORIZATION"],
-      keychain_name: "fastlane_tmp.keychain",
-      keychain_password: ENV["KEYCHAIN_PASSWORD"],
-      team_id: ENV["APPLE_TEAM_ID"]
-    )
-
-    run_signing_readiness_check!(config_path: config_path, mode: "profiles")
-
-    UI.success("Signing bootstrap completed for bundle IDs: #{bundle_ids.join(', ')}")
-  end
-
-  desc "Readonly TestFlight release lane (zero-touch after bootstrap)."
+  desc "Readonly TestFlight release lane (single CI path)."
   lane :testflight_release do
     assert_required_env!(
       %w[
@@ -228,9 +142,6 @@ platform :ios do
       lock_when_sleeps: true
     )
 
-    match_readonly = ENV.fetch("MATCH_READONLY", "true").strip.downcase == "true"
-    UI.user_error!("Readonly release lane requires MATCH_READONLY=true") unless match_readonly
-
     begin
       match(
         type: "appstore",
@@ -245,7 +156,7 @@ platform :ios do
       )
     rescue => _error
       UI.user_error!(
-        "ERROR_ONE_LINE: signing profiles are not ready for current bundle IDs | ACTION: run signing-bootstrap workflow once, then re-run release workflow."
+        "ERROR_ONE_LINE: signing profiles are not ready for current bundle IDs | ACTION: provision/update profiles out-of-band, then re-run release workflow."
       )
     end
 
@@ -283,10 +194,5 @@ platform :ios do
     )
 
     UI.success("Readonly TestFlight release completed for #{bundle_id} (scheme: #{scheme})")
-  end
-
-  # Backward-compatible lane alias
-  lane :testflight do
-    testflight_release
   end
 end
