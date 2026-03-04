@@ -31,14 +31,14 @@ xcodebuild -project FeedTracker.xcodeproj \
 View -> ViewModel -> UseCase -> Repository/Service
 
 ## Release Workflow (TestFlight)
-- Normal release (readonly, zero-touch): `.github/workflows/release.yml`
-  - Default deploy command: `bundle exec fastlane ios testflight_release`
-- Rare bootstrap/provision flow (portal mutation): `.github/workflows/signing-bootstrap.yml`
-  - Command: `bundle exec fastlane ios signing_bootstrap`
+- Single CI release path: `.github/workflows/release.yml`
+- Default deploy command: `bundle exec fastlane ios testflight_release`
 - Signing source-of-truth config: `ci/signing-targets.json`
-- Capability/profile drift check: `scripts/ci/check_signing_readiness.py`
+- Drift/fail-fast checks:
+  - `scripts/ci/validate_release_contract.sh`
+  - `scripts/ci/check_signing_readiness.py`
 - Export compliance default is declared in generated Info.plist via project build setting: `ITSAppUsesNonExemptEncryption=NO`.
-- Full architecture + migration doc: `docs/ci/testflight-zero-touch.md`
+- Full architecture doc: `docs/ci/testflight-zero-touch.md`
 
 ## Latest MVP Slice
 - AC-MVP-10: Live Activity state model + quick-action router/handler (`start_left`, `start_right`, `end_session`)

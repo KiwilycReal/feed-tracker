@@ -150,7 +150,7 @@ def main() -> None:
     if missing_from_config:
         actionable_error(
             f"bundle IDs exist in project but missing in signing config: {', '.join(missing_from_config)}",
-            "add missing bundle IDs to signing config, then run signing-bootstrap workflow",
+            "add missing bundle IDs to signing config, provision matching profiles/capabilities, then rerun release",
         )
 
     stale_in_config = sorted(set(cfg_by_bundle.keys()) - discovered_bundles)
@@ -166,7 +166,7 @@ def main() -> None:
             if bundle_id not in profiles:
                 actionable_error(
                     f"missing provisioning profile for bundle ID {bundle_id}",
-                    "run signing-bootstrap workflow once to provision/update app identifiers and profiles",
+                    "provision/update app identifiers and profiles outside CI, then rerun release",
                 )
 
             expected_name = target_cfg.get("profile_name", "").strip()
@@ -174,7 +174,7 @@ def main() -> None:
             if expected_name and expected_name != actual_name:
                 actionable_error(
                     f"profile name mismatch for {bundle_id}: expected '{expected_name}', got '{actual_name}'",
-                    "run signing-bootstrap workflow to refresh match profiles",
+                    "refresh match profiles outside CI, then rerun release",
                 )
 
         discovered_by_bundle = {d["bundle_id"]: d for d in discovered}
@@ -192,7 +192,7 @@ def main() -> None:
                 if key not in profile_ent:
                     actionable_error(
                         f"entitlement '{key}' for {bundle_id} is not present in provisioning profile",
-                        "run signing-bootstrap workflow after capability changes to regenerate profiles",
+                        "regenerate provisioning profiles after capability changes, then rerun release",
                     )
 
     print(
