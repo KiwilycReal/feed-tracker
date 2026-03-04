@@ -4,9 +4,28 @@ require "shellwords"
 
 default_platform(:ios)
 
+def repo_root
+  workspace = ENV.fetch("GITHUB_WORKSPACE", "").to_s.strip
+  return workspace unless workspace.empty? || !Dir.exist?(workspace)
+
+  File.expand_path("..", __dir__)
+end
+
+def resolve_repo_path(path)
+  raw = path.to_s.strip
+  return raw if raw.empty?
+  return raw if File.exist?(raw)
+
+  expanded = File.expand_path(raw, repo_root)
+  return expanded if File.exist?(expanded)
+
+  raw
+end
+
 def load_signing_config!
   path = ENV.fetch("CI_SIGNING_CONFIG_PATH", "").to_s.strip
   path = "ci/signing-targets.json" if path.empty?
+  path = resolve_repo_path(path)
   UI.user_error!("Signing config not found: #{path}") unless File.exist?(path)
 
   config = JSON.parse(File.read(path))
@@ -28,14 +47,14 @@ end
 
 def release_project_path(config)
   ENV.fetch("CI_XCODE_PROJECT", "").strip.tap do |value|
-    return value unless value.empty?
+    return resolve_repo_path(value) unless value.empty?
   end
 
-  config.fetch("project_path", "").to_s
+  resolve_repo_path(config.fetch("project_path", "").to_s)
 end
 
 def release_workspace_path
-  ENV.fetch("CI_XCODE_WORKSPACE", "").strip
+  resolve_repo_path(ENV.fetch("CI_XCODE_WORKSPACE", "").strip)
 end
 
 def release_scheme(config)
@@ -64,9 +83,11 @@ def assert_required_env!(keys, lane_name)
 end
 
 def run_signing_readiness_check!(config_path:, mode:)
+  script = File.expand_path("scripts/ci/check_signing_readiness.py", repo_root)
+  quoted_script = Shellwords.escape(script)
   quoted_path = Shellwords.escape(config_path)
   quoted_mode = Shellwords.escape(mode)
-  sh("python3 scripts/ci/check_signing_readiness.py --config #{quoted_path} --mode #{quoted_mode}")
+  sh("python3 #{quoted_script} --config #{quoted_path} --mode #{quoted_mode} --repo-root #{Shellwords.escape(repo_root)}")
 end
 
 def ensure_portal_app_identifier!(bundle_id:, app_name:)
