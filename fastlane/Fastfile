@@ -1,28 +1,90 @@
+require "base64"
+require "json"
+require "shellwords"
+
 default_platform(:ios)
 
-private_lane :ensure_portal_app_identifier do |options|
-  bundle_id = options[:bundle_id].to_s.strip
-  app_name = options[:app_name].to_s.strip
-  return if bundle_id.empty?
+def load_signing_config!
+  path = ENV.fetch("CI_SIGNING_CONFIG_PATH", "").to_s.strip
+  path = "ci/signing-targets.json" if path.empty?
+  UI.user_error!("Signing config not found: #{path}") unless File.exist?(path)
 
-  username = ENV["APPLE_ID"].to_s.strip
-  if username.empty?
-    UI.user_error!("APPLE_ID is required to create missing app identifier: #{bundle_id}")
+  config = JSON.parse(File.read(path))
+  targets = config.fetch("targets", [])
+  UI.user_error!("Signing config targets is empty: #{path}") if targets.empty?
+
+  [path, config]
+end
+
+def configured_bundle_ids(config)
+  config.fetch("targets", []).map { |item| item.fetch("bundle_id") }
+end
+
+def configured_profile_mapping(config)
+  config.fetch("targets", []).to_h do |item|
+    [item.fetch("bundle_id"), item.fetch("profile_name")]
+  end
+end
+
+def release_project_path(config)
+  ENV.fetch("CI_XCODE_PROJECT", "").strip.tap do |value|
+    return value unless value.empty?
   end
 
+  config.fetch("project_path", "").to_s
+end
+
+def release_workspace_path
+  ENV.fetch("CI_XCODE_WORKSPACE", "").strip
+end
+
+def release_scheme(config)
+  ENV.fetch("CI_XCODE_SCHEME", "").strip.tap do |value|
+    return value unless value.empty?
+  end
+
+  config.fetch("scheme", "").to_s
+end
+
+def release_primary_bundle_id(config, bundle_ids)
+  from_env = ENV.fetch("CI_APP_IDENTIFIER", "").strip
+  return from_env unless from_env.empty?
+
+  from_config = config.fetch("primary_bundle_id", "").to_s
+  return from_config unless from_config.empty?
+
+  bundle_ids.first
+end
+
+def assert_required_env!(keys, lane_name)
+  missing = keys.select { |key| ENV.fetch(key, "").strip.empty? }
+  return if missing.empty?
+
+  UI.user_error!("Missing required #{lane_name} keys: #{missing.join(', ')}")
+end
+
+def run_signing_readiness_check!(config_path:, mode:)
+  quoted_path = Shellwords.escape(config_path)
+  quoted_mode = Shellwords.escape(mode)
+  sh("python3 scripts/ci/check_signing_readiness.py --config #{quoted_path} --mode #{quoted_mode}")
+end
+
+def ensure_portal_app_identifier!(bundle_id:, app_name:)
+  username = ENV.fetch("APPLE_ID", "").strip
+  UI.user_error!("APPLE_ID is required for signing bootstrap lane") if username.empty?
+
   begin
-    UI.important("Ensuring app identifier exists in Apple Developer portal: #{bundle_id}")
     produce(
       username: username,
       app_identifier: bundle_id,
-      app_name: app_name.empty? ? bundle_id : app_name,
+      app_name: app_name,
       skip_itc: true,
       skip_devcenter: false
     )
   rescue => error
     message = error.to_s
     if message.include?("already") || message.include?("taken")
-      UI.message("App identifier already exists or reserved: #{bundle_id}")
+      UI.message("Portal app identifier already exists: #{bundle_id}")
     else
       raise error
     end
@@ -30,46 +92,103 @@ private_lane :ensure_portal_app_identifier do |options|
 end
 
 platform :ios do
-  desc "Build and upload iOS app to TestFlight"
-  lane :testflight do
-    required_env_keys = %w[
-      APP_STORE_CONNECT_API_KEY_ID
-      APP_STORE_CONNECT_API_ISSUER_ID
-      APP_STORE_CONNECT_API_KEY_BASE64
-      APPLE_TEAM_ID
-      MATCH_PASSWORD
-      MATCH_GIT_BASIC_AUTHORIZATION
-      KEYCHAIN_PASSWORD
-    ]
+  desc "Bootstrap signing resources (portal app IDs + profiles). Human-invoked rare lane."
+  lane :signing_bootstrap do
+    assert_required_env!(
+      %w[
+        APP_STORE_CONNECT_API_KEY_ID
+        APP_STORE_CONNECT_API_ISSUER_ID
+        APP_STORE_CONNECT_API_KEY_BASE64
+        APPLE_TEAM_ID
+        APPLE_ID
+        FASTLANE_SESSION
+        MATCH_PASSWORD
+        MATCH_GIT_BASIC_AUTHORIZATION
+        KEYCHAIN_PASSWORD
+        MATCH_GIT_URL
+      ],
+      "signing_bootstrap"
+    )
 
-    missing = required_env_keys.select { |key| ENV.fetch(key, "").strip.empty? }
-    unless missing.empty?
-      UI.user_error!("Missing required release secrets: #{missing.join(', ')}")
+    config_path, config = load_signing_config!
+    bundle_ids = configured_bundle_ids(config)
+
+    run_signing_readiness_check!(config_path: config_path, mode: "config")
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
+      issuer_id: ENV["APP_STORE_CONNECT_API_ISSUER_ID"],
+      key_content: Base64.decode64(ENV["APP_STORE_CONNECT_API_KEY_BASE64"]),
+      is_key_content_base64: false,
+      in_house: false
+    )
+
+    create_keychain(
+      name: "fastlane_tmp.keychain",
+      password: ENV["KEYCHAIN_PASSWORD"],
+      default_keychain: true,
+      unlock: true,
+      timeout: 3600,
+      lock_when_sleeps: true
+    )
+
+    config.fetch("targets", []).each do |target|
+      bundle_id = target.fetch("bundle_id")
+      app_name = target.fetch("target", bundle_id)
+      UI.important("Ensuring portal app identifier: #{bundle_id}")
+      ensure_portal_app_identifier!(bundle_id: bundle_id, app_name: app_name)
     end
 
-    workspace = ENV["CI_XCODE_WORKSPACE"].to_s.strip
-    project = ENV["CI_XCODE_PROJECT"].to_s.strip
-    scheme = ENV["CI_XCODE_SCHEME"].to_s.strip
-    bundle_id = ENV["CI_APP_IDENTIFIER"].to_s.strip
-    extension_bundle_id = ENV["CI_APP_EXTENSION_IDENTIFIER"].to_s.strip
-    extension_bundle_id = "#{bundle_id}.LiveActivityWidgetExtension" if extension_bundle_id.empty?
-    match_git_url = ENV["MATCH_GIT_URL"].to_s.strip
+    match(
+      type: "appstore",
+      app_identifier: bundle_ids,
+      readonly: false,
+      git_url: ENV["MATCH_GIT_URL"],
+      api_key: api_key,
+      git_basic_authorization: ENV["MATCH_GIT_BASIC_AUTHORIZATION"],
+      keychain_name: "fastlane_tmp.keychain",
+      keychain_password: ENV["KEYCHAIN_PASSWORD"],
+      team_id: ENV["APPLE_TEAM_ID"]
+    )
+
+    run_signing_readiness_check!(config_path: config_path, mode: "profiles")
+
+    UI.success("Signing bootstrap completed for bundle IDs: #{bundle_ids.join(', ')}")
+  end
+
+  desc "Readonly TestFlight release lane (zero-touch after bootstrap)."
+  lane :testflight_release do
+    assert_required_env!(
+      %w[
+        APP_STORE_CONNECT_API_KEY_ID
+        APP_STORE_CONNECT_API_ISSUER_ID
+        APP_STORE_CONNECT_API_KEY_BASE64
+        APPLE_TEAM_ID
+        MATCH_PASSWORD
+        MATCH_GIT_BASIC_AUTHORIZATION
+        KEYCHAIN_PASSWORD
+        MATCH_GIT_URL
+      ],
+      "testflight_release"
+    )
+
+    config_path, config = load_signing_config!
+    bundle_ids = configured_bundle_ids(config)
+    profile_mapping = configured_profile_mapping(config)
+
+    run_signing_readiness_check!(config_path: config_path, mode: "config")
+
+    workspace = release_workspace_path
+    project = release_project_path(config)
+    scheme = release_scheme(config)
+    bundle_id = release_primary_bundle_id(config, bundle_ids)
 
     if workspace.empty? && project.empty?
-      UI.user_error!("Set CI_XCODE_WORKSPACE or CI_XCODE_PROJECT before release deploy")
+      UI.user_error!("Set CI_XCODE_WORKSPACE or CI_XCODE_PROJECT (or project_path in signing config)")
     end
 
-    if scheme.empty?
-      UI.user_error!("Set CI_XCODE_SCHEME before release deploy")
-    end
-
-    if bundle_id.empty?
-      UI.user_error!("Set CI_APP_IDENTIFIER (bundle id) before release deploy")
-    end
-
-    if match_git_url.empty?
-      UI.user_error!("Set MATCH_GIT_URL (certificates repo HTTPS URL) before release deploy")
-    end
+    UI.user_error!("Set CI_XCODE_SCHEME (or scheme in signing config)") if scheme.to_s.strip.empty?
+    UI.user_error!("Unable to determine primary bundle identifier") if bundle_id.to_s.strip.empty?
 
     api_key = app_store_connect_api_key(
       key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
@@ -89,25 +208,27 @@ platform :ios do
     )
 
     match_readonly = ENV.fetch("MATCH_READONLY", "true").strip.downcase == "true"
+    UI.user_error!("Readonly release lane requires MATCH_READONLY=true") unless match_readonly
 
-    UI.message("Using match readonly=#{match_readonly}")
+    begin
+      match(
+        type: "appstore",
+        app_identifier: bundle_ids,
+        readonly: true,
+        git_url: ENV["MATCH_GIT_URL"],
+        api_key: api_key,
+        git_basic_authorization: ENV["MATCH_GIT_BASIC_AUTHORIZATION"],
+        keychain_name: "fastlane_tmp.keychain",
+        keychain_password: ENV["KEYCHAIN_PASSWORD"],
+        team_id: ENV["APPLE_TEAM_ID"]
+      )
+    rescue => _error
+      UI.user_error!(
+        "ERROR_ONE_LINE: signing profiles are not ready for current bundle IDs | ACTION: run signing-bootstrap workflow once, then re-run release workflow."
+      )
+    end
 
-    ensure_portal_app_identifier(
-      bundle_id: extension_bundle_id,
-      app_name: "FeedTracker Live Activity"
-    )
-
-    match(
-      type: "appstore",
-      app_identifier: [bundle_id, extension_bundle_id],
-      readonly: match_readonly,
-      git_url: match_git_url,
-      api_key: api_key,
-      git_basic_authorization: ENV["MATCH_GIT_BASIC_AUTHORIZATION"],
-      keychain_name: "fastlane_tmp.keychain",
-      keychain_password: ENV["KEYCHAIN_PASSWORD"],
-      team_id: ENV["APPLE_TEAM_ID"]
-    )
+    run_signing_readiness_check!(config_path: config_path, mode: "profiles")
 
     build_options = {
       clean: true,
@@ -118,10 +239,7 @@ platform :ios do
       include_symbols: true,
       include_bitcode: false,
       export_options: {
-        provisioningProfiles: {
-          bundle_id => "match AppStore #{bundle_id}",
-          extension_bundle_id => "match AppStore #{extension_bundle_id}"
-        }
+        provisioningProfiles: profile_mapping
       },
       xcargs: "DEVELOPMENT_TEAM=#{ENV["APPLE_TEAM_ID"]} CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=\"Apple Distribution\""
     }
@@ -143,6 +261,11 @@ platform :ios do
       notify_external_testers: false
     )
 
-    UI.success("Uploaded build to TestFlight: #{bundle_id} (scheme: #{scheme})")
+    UI.success("Readonly TestFlight release completed for #{bundle_id} (scheme: #{scheme})")
+  end
+
+  # Backward-compatible lane alias
+  lane :testflight do
+    testflight_release
   end
 end

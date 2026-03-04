@@ -1,0 +1,17 @@
+{
+  "project_path": "FeedTracker.xcodeproj",
+  "scheme": "FeedTracker",
+  "primary_bundle_id": "com.kiwilyc.feedtracker",
+  "targets": [
+    {
+      "target": "FeedTracker",
+      "bundle_id": "com.kiwilyc.feedtracker",
+      "profile_name": "match AppStore com.kiwilyc.feedtracker"
+    },
+    {
+      "target": "FeedTrackerLiveActivityWidgetExtension",
+      "bundle_id": "com.kiwilyc.feedtracker.LiveActivityWidgetExtension",
+      "profile_name": "match AppStore com.kiwilyc.feedtracker.LiveActivityWidgetExtension"
+    }
+  ]
+}
