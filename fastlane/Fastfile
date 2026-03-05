@@ -177,7 +177,7 @@ platform :ios do
       export_options: {
         provisioningProfiles: profile_mapping
       },
-      xcargs: "DEVELOPMENT_TEAM=#{ENV["APPLE_TEAM_ID"]} CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=\"Apple Distribution\""
+      xcargs: "DEVELOPMENT_TEAM=#{ENV["APPLE_TEAM_ID"]}"
     }
 
     if workspace.empty?
