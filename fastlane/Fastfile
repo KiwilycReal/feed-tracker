@@ -90,6 +90,10 @@ def run_signing_readiness_check!(config_path:, mode:)
   sh("python3 #{quoted_script} --config #{quoted_path} --mode #{quoted_mode} --repo-root #{Shellwords.escape(repo_root)}")
 end
 
+def match_readonly_mode
+  ENV.fetch("MATCH_READONLY", "true").to_s.strip.downcase != "false"
+end
+
 platform :ios do
   desc "Readonly TestFlight release lane (single CI path)."
   lane :testflight_release do
@@ -146,7 +150,7 @@ platform :ios do
       match(
         type: "appstore",
         app_identifier: bundle_ids,
-        readonly: true,
+        readonly: match_readonly_mode,
         git_url: ENV["MATCH_GIT_URL"],
         api_key: api_key,
         git_basic_authorization: ENV["MATCH_GIT_BASIC_AUTHORIZATION"],
