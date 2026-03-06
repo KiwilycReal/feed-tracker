@@ -74,31 +74,36 @@ def discover_targets(project_path: str, configuration: str = "Release") -> List[
 
 
 def load_profiles() -> Dict[str, dict]:
-    profiles_dir = Path.home() / "Library/MobileDevice/Provisioning Profiles"
-    if not profiles_dir.exists():
-        return {}
+    profile_dirs = [
+        Path.home() / "Library/MobileDevice/Provisioning Profiles",
+        Path.home() / "Library/Developer/Xcode/UserData/Provisioning Profiles",
+    ]
 
     found: Dict[str, dict] = {}
-    for profile in profiles_dir.glob("*.mobileprovision"):
-        try:
-            decoded = subprocess.run(
-                ["security", "cms", "-D", "-i", str(profile)],
-                capture_output=True,
-                check=True,
-            ).stdout
-            plist = plistlib.loads(decoded)
-            ent = plist.get("Entitlements", {})
-            app_identifier = ent.get("application-identifier", "")
-            if "." not in app_identifier:
-                continue
-            bundle_id = app_identifier.split(".", 1)[1]
-            found[bundle_id] = {
-                "name": plist.get("Name", ""),
-                "path": str(profile),
-                "entitlements": ent,
-            }
-        except Exception:
+    for profiles_dir in profile_dirs:
+        if not profiles_dir.exists():
             continue
+
+        for profile in profiles_dir.glob("*.mobileprovision"):
+            try:
+                decoded = subprocess.run(
+                    ["security", "cms", "-D", "-i", str(profile)],
+                    capture_output=True,
+                    check=True,
+                ).stdout
+                plist = plistlib.loads(decoded)
+                ent = plist.get("Entitlements", {})
+                app_identifier = ent.get("application-identifier", "")
+                if "." not in app_identifier:
+                    continue
+                bundle_id = app_identifier.split(".", 1)[1]
+                found[bundle_id] = {
+                    "name": plist.get("Name", ""),
+                    "path": str(profile),
+                    "entitlements": ent,
+                }
+            except Exception:
+                continue
 
     return found
 

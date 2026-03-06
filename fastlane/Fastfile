@@ -90,6 +90,10 @@ def run_signing_readiness_check!(config_path:, mode:)
   sh("python3 #{quoted_script} --config #{quoted_path} --mode #{quoted_mode} --repo-root #{Shellwords.escape(repo_root)}")
 end
 
+def match_readonly_mode
+  ENV.fetch("MATCH_READONLY", "true").to_s.strip.downcase != "false"
+end
+
 platform :ios do
   desc "Readonly TestFlight release lane (single CI path)."
   lane :testflight_release do
@@ -146,7 +150,7 @@ platform :ios do
       match(
         type: "appstore",
         app_identifier: bundle_ids,
-        readonly: true,
+        readonly: match_readonly_mode,
         git_url: ENV["MATCH_GIT_URL"],
         api_key: api_key,
         git_basic_authorization: ENV["MATCH_GIT_BASIC_AUTHORIZATION"],
@@ -162,6 +166,24 @@ platform :ios do
 
     run_signing_readiness_check!(config_path: config_path, mode: "profiles")
 
+    target_configs = config.fetch("targets", [])
+    target_configs.each do |target_cfg|
+      target_name = target_cfg.fetch("target")
+      profile_name = target_cfg.fetch("profile_name")
+      bundle_identifier = target_cfg.fetch("bundle_id")
+
+      update_code_signing_settings(
+        use_automatic_signing: false,
+        path: project,
+        targets: [target_name],
+        build_configurations: ["Release"],
+        team_id: ENV["APPLE_TEAM_ID"],
+        code_sign_identity: "Apple Distribution",
+        profile_name: profile_name,
+        bundle_identifier: bundle_identifier
+      )
+    end
+
     build_options = {
       clean: true,
       configuration: "Release",
@@ -173,7 +195,7 @@ platform :ios do
       export_options: {
         provisioningProfiles: profile_mapping
       },
-      xcargs: "DEVELOPMENT_TEAM=#{ENV["APPLE_TEAM_ID"]} CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=\"Apple Distribution\""
+      xcargs: "DEVELOPMENT_TEAM=#{ENV["APPLE_TEAM_ID"]}"
     }
 
     if workspace.empty?
