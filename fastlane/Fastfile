@@ -166,6 +166,24 @@ platform :ios do
 
     run_signing_readiness_check!(config_path: config_path, mode: "profiles")
 
+    target_configs = config.fetch("targets", [])
+    target_configs.each do |target_cfg|
+      target_name = target_cfg.fetch("target")
+      profile_name = target_cfg.fetch("profile_name")
+      bundle_identifier = target_cfg.fetch("bundle_id")
+
+      update_code_signing_settings(
+        use_automatic_signing: false,
+        path: project,
+        targets: [target_name],
+        build_configurations: ["Release"],
+        team_id: ENV["APPLE_TEAM_ID"],
+        code_sign_identity: "Apple Distribution",
+        profile_name: profile_name,
+        bundle_identifier: bundle_identifier
+      )
+    end
+
     build_options = {
       clean: true,
       configuration: "Release",
