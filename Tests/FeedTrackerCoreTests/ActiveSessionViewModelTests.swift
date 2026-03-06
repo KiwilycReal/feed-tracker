@@ -39,6 +39,28 @@ final class ActiveSessionViewModelTests: XCTestCase {
         XCTAssertEqual(persisted.totalDuration, 45, accuracy: 0.001)
         XCTAssertEqual(persisted.note, "saved by view model")
     }
+
+    func testDisplayResetsToZeroAfterEndingSession() async throws {
+        let clock = ViewModelTestClock(start: Date(timeIntervalSince1970: 21_000))
+        let engine = SessionTimerEngine(now: { clock.now })
+        let repository = InMemoryFeedingSessionRepository()
+        let viewModel = ActiveSessionViewModel(engine: engine, repository: repository)
+
+        try viewModel.start(side: .right)
+        clock.advance(seconds: 32)
+        _ = try await viewModel.endSession()
+
+        XCTAssertEqual(viewModel.displayState.state, .idle)
+        XCTAssertEqual(viewModel.displayState.leftElapsed, 0, accuracy: 0.001)
+        XCTAssertEqual(viewModel.displayState.rightElapsed, 0, accuracy: 0.001)
+        XCTAssertEqual(viewModel.displayState.totalElapsed, 0, accuracy: 0.001)
+
+        clock.advance(seconds: 5)
+        viewModel.refresh(at: clock.now)
+
+        XCTAssertEqual(viewModel.displayState.state, .idle)
+        XCTAssertEqual(viewModel.displayState.totalElapsed, 0, accuracy: 0.001)
+    }
 }
 
 private final class ViewModelTestClock {

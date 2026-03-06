@@ -54,12 +54,12 @@ public final class ActiveSessionViewModel: ObservableObject {
         self.displayState = .idle
 
         restoreRecoveredState()
-        self.displayState = ActiveSessionDisplayState(snapshot: engine.snapshot())
+        self.displayState = displayState(for: engine.snapshot())
         syncLiveActivity(source: "active_session_vm.init")
     }
 
     public func refresh(at date: Date? = nil) {
-        displayState = ActiveSessionDisplayState(snapshot: engine.snapshot(at: date))
+        displayState = displayState(for: engine.snapshot(at: date))
     }
 
     public func start(side: FeedingSide) throws {
@@ -281,6 +281,14 @@ public final class ActiveSessionViewModel: ObservableObject {
                 source: "active_session_vm"
             )
         }
+    }
+
+    private func displayState(for snapshot: SessionTimerSnapshot) -> ActiveSessionDisplayState {
+        if case .ended = snapshot.state {
+            return .idle
+        }
+
+        return ActiveSessionDisplayState(snapshot: snapshot)
     }
 
     private func syncLiveActivity(source: String) {
