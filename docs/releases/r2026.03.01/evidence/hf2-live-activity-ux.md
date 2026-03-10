@@ -65,3 +65,5 @@ Recommended reference scripts/docs:
 ## Risk Notes
 - Build is clean and behavior is covered by automated state tests.
 - Xcode still reports non-blocking AppIntent availability warnings for synthesized accessors in the widget intent file; build succeeds and functionality is unaffected.
+
+- Codex review trigger validation: harmless follow-up push on 2026-03-10.
