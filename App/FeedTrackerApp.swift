@@ -109,7 +109,11 @@ final class FeedTrackerDependencies {
         let legacyURL = legacySessionsFileURL(fileManager: fileManager)
 
         if let sharedURL = FeedTrackerSharedStorage.sessionsFileURL(fileManager: fileManager) {
-            migrateLegacySessionsIfNeeded(from: legacyURL, to: sharedURL, fileManager: fileManager)
+            FeedTrackerSharedStorage.migrateLegacySessionsIfNeeded(
+                from: legacyURL,
+                to: sharedURL,
+                fileManager: fileManager
+            )
 
             if let repository = try? FileFeedingSessionRepository(fileURL: sharedURL) {
                 return repository
@@ -128,28 +132,6 @@ final class FeedTrackerDependencies {
         fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
             .appendingPathComponent(FeedTrackerSharedStorage.directoryName, isDirectory: true)
             .appendingPathComponent("sessions.json")
-    }
-
-    private static func migrateLegacySessionsIfNeeded(
-        from legacyURL: URL?,
-        to sharedURL: URL,
-        fileManager: FileManager = .default
-    ) {
-        guard let legacyURL,
-              fileManager.fileExists(atPath: legacyURL.path),
-              !fileManager.fileExists(atPath: sharedURL.path) else {
-            return
-        }
-
-        do {
-            try fileManager.createDirectory(
-                at: sharedURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            try fileManager.copyItem(at: legacyURL, to: sharedURL)
-        } catch {
-            // keep using whichever repository location can still initialize
-        }
     }
 
     var appVersion: String {

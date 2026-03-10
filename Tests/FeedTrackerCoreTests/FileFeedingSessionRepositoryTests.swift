@@ -80,6 +80,70 @@ final class FileFeedingSessionRepositoryTests: XCTestCase {
         XCTAssertEqual(migratedStore.sessions.first?.id, v1Session.id)
     }
 
+    func testSharedStorageMigrationFillsBootstrapSharedStoreFromLegacyHistory() async throws {
+        let legacyURL = try makeTempStoreURL(testName: #function + ".legacy")
+        let sharedURL = try makeTempStoreURL(testName: #function + ".shared")
+
+        let legacySession = try FeedingSession(
+            id: UUID(uuidString: "00000000-0000-0000-0000-0000000000D4")!,
+            startedAt: Date(timeIntervalSince1970: 4_000),
+            endedAt: Date(timeIntervalSince1970: 4_120),
+            leftDuration: 75,
+            rightDuration: 45,
+            note: "legacy history",
+            status: .completed
+        )
+
+        let legacyData = try makeJSONEncoder().encode([legacySession])
+        try legacyData.write(to: legacyURL, options: .atomic)
+
+        _ = try FileFeedingSessionRepository(fileURL: sharedURL)
+
+        FeedTrackerSharedStorage.migrateLegacySessionsIfNeeded(from: legacyURL, to: sharedURL)
+
+        let sharedRepository = try FileFeedingSessionRepository(fileURL: sharedURL)
+        let sessions = try await sharedRepository.fetchAll()
+
+        XCTAssertEqual(sessions.count, 1)
+        XCTAssertEqual(sessions.first?.id, legacySession.id)
+    }
+
+    func testSharedStorageMigrationMergesLegacyHistoryIntoExistingSharedStore() async throws {
+        let legacyURL = try makeTempStoreURL(testName: #function + ".legacy")
+        let sharedURL = try makeTempStoreURL(testName: #function + ".shared")
+
+        let legacySession = try FeedingSession(
+            id: UUID(uuidString: "00000000-0000-0000-0000-0000000000D5")!,
+            startedAt: Date(timeIntervalSince1970: 5_000),
+            endedAt: Date(timeIntervalSince1970: 5_090),
+            leftDuration: 50,
+            rightDuration: 40,
+            note: "legacy only",
+            status: .completed
+        )
+        let sharedSession = try FeedingSession(
+            id: UUID(uuidString: "00000000-0000-0000-0000-0000000000D6")!,
+            startedAt: Date(timeIntervalSince1970: 6_000),
+            endedAt: Date(timeIntervalSince1970: 6_180),
+            leftDuration: 95,
+            rightDuration: 85,
+            note: "shared only",
+            status: .completed
+        )
+
+        try makeJSONEncoder().encode([legacySession]).write(to: legacyURL, options: .atomic)
+
+        let sharedRepository = try FileFeedingSessionRepository(fileURL: sharedURL)
+        try await sharedRepository.upsert(sharedSession)
+
+        FeedTrackerSharedStorage.migrateLegacySessionsIfNeeded(from: legacyURL, to: sharedURL)
+
+        let reloadedRepository = try FileFeedingSessionRepository(fileURL: sharedURL)
+        let sessions = try await reloadedRepository.fetchAll()
+
+        XCTAssertEqual(Set(sessions.map(\.id)), Set([legacySession.id, sharedSession.id]))
+    }
+
     private func makeTempStoreURL(testName: String) throws -> URL {
         let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("FeedTrackerCoreTests", isDirectory: true)
