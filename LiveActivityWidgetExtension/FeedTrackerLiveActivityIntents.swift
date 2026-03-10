@@ -64,6 +64,7 @@ struct FeedTrackerLiveActivityControlIntent: LiveActivityIntent {
 private enum FeedTrackerLiveActivityIntentRuntime {
     private static let appGroupIdentifier = "group.com.kiwilyc.feedtracker"
     private static let recoveryKey = "feedtracker.active_session_recovery.v1"
+    private static let feedTrackerDirectoryName = "FeedTracker"
 
     static func execute(action: LiveActivityQuickAction) async throws -> LiveActivityState {
         try await executeOnMain(action: action)
@@ -93,16 +94,13 @@ private enum FeedTrackerLiveActivityIntentRuntime {
     @MainActor
     private static func executeOnMain(action: LiveActivityQuickAction) async throws -> LiveActivityState {
         let engine = SessionTimerEngine()
-        let recoveryStore = RecoveryStore(
-            userDefaults: UserDefaults(suiteName: appGroupIdentifier) ?? .standard,
-            key: recoveryKey
-        )
+        let recoveryStores = makeRecoveryStores()
 
-        if let recoveryState = try recoveryStore.load() {
+        if let recoveryState = try loadRecoveryState(from: recoveryStores) {
             do {
                 try engine.restore(from: recoveryState)
             } catch {
-                try recoveryStore.clear()
+                try clearRecoveryState(in: recoveryStores)
             }
         }
 
@@ -114,9 +112,9 @@ private enum FeedTrackerLiveActivityIntentRuntime {
         _ = try await handler.handle(action)
 
         if let persistedState = engine.recoveryStateForPersistence() {
-            try recoveryStore.save(persistedState)
+            try saveRecoveryState(persistedState, in: recoveryStores)
         } else {
-            try recoveryStore.clear()
+            try clearRecoveryState(in: recoveryStores)
         }
 
         return handler.currentState()
@@ -132,16 +130,52 @@ private enum FeedTrackerLiveActivityIntentRuntime {
         return repository
     }
 
+    private static func makeRecoveryStores() -> [RecoveryStore] {
+        var stores = [RecoveryStore(userDefaults: .standard, key: recoveryKey)]
+
+        if let sharedDefaults = UserDefaults(suiteName: appGroupIdentifier) {
+            stores.append(RecoveryStore(userDefaults: sharedDefaults, key: recoveryKey))
+        }
+
+        return stores
+    }
+
+    private static func loadRecoveryState(from stores: [RecoveryStore]) throws -> SessionTimerRecoveryState? {
+        for store in stores {
+            if let state = try store.load() {
+                return state
+            }
+        }
+
+        return nil
+    }
+
+    private static func saveRecoveryState(_ state: SessionTimerRecoveryState, in stores: [RecoveryStore]) throws {
+        for store in stores {
+            try store.save(state)
+        }
+    }
+
+    private static func clearRecoveryState(in stores: [RecoveryStore]) throws {
+        for store in stores {
+            try store.clear()
+        }
+    }
+
     private static func sessionsFileURL(fileManager: FileManager = .default) -> URL? {
-        if let containerURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) {
-            return containerURL
-                .appendingPathComponent("FeedTracker", isDirectory: true)
+        if let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            return appSupportURL
+                .appendingPathComponent(feedTrackerDirectoryName, isDirectory: true)
                 .appendingPathComponent("sessions.json")
         }
 
-        return fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
-            .appendingPathComponent("FeedTracker", isDirectory: true)
-            .appendingPathComponent("sessions.json")
+        if let containerURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) {
+            return containerURL
+                .appendingPathComponent(feedTrackerDirectoryName, isDirectory: true)
+                .appendingPathComponent("sessions.json")
+        }
+
+        return nil
     }
 }
 
