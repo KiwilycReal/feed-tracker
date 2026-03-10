@@ -22,11 +22,14 @@ final class UserDefaultsActiveSessionRecoveryStore: ActiveSessionRecoveryStoring
         self.key = key
     }
 
-    func load() throws -> SessionTimerRecoveryState? {
+    func load(strategy: ActiveSessionRecoveryLoadStrategy) throws -> SessionTimerRecoveryState? {
         var lastError: Error?
 
         for (index, userDefaults) in userDefaultsStores.enumerated() {
             guard let data = userDefaults.data(forKey: key) else {
+                if index == 0, strategy == .primaryStoreAuthoritativeWhenMissing {
+                    return nil
+                }
                 continue
             }
 
@@ -122,7 +125,7 @@ final class FeedTrackerDependencies {
             deviceModelProvider: { DeviceModel.currentIdentifier() },
             sourceTag: "ios-app"
         )
-        self.lastHandledExternalSyncMarker = FeedTrackerSharedStorage.readExternalSyncMarker()
+        self.lastHandledExternalSyncMarker = nil
     }
 
     private static func makeLiveActivityController() -> any LiveActivityControlling {

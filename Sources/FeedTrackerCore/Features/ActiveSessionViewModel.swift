@@ -70,7 +70,7 @@ public final class ActiveSessionViewModel: ObservableObject {
         }
 
         do {
-            if let recoveryState = try recoveryStore.load() {
+            if let recoveryState = try recoveryStore.load(strategy: .primaryStoreAuthoritativeWhenMissing) {
                 try engine.restore(from: recoveryState)
                 diagnostics?.record(
                     category: "session_recovery",
