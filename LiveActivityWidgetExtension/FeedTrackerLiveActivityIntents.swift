@@ -91,9 +91,9 @@ private enum FeedTrackerLiveActivityIntentRuntime {
         let contentState = FeedTrackerLiveActivityContentState(state: state)
         let content = ActivityContent(state: contentState, staleDate: nil)
 
-        if state.timerStatus == .ended || state.timerStatus == .idle {
+        if state.timerStatus == .ended {
             await activity.end(content, dismissalPolicy: .immediate)
-        } else {
+        } else if state.timerStatus != .idle {
             await activity.update(content)
         }
     }
