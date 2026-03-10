@@ -78,6 +78,7 @@ final class FeedTrackerDependencies {
     let activeSessionRecoveryStore: any ActiveSessionRecoveryStoring
     let liveActivityCoordinator: any LiveActivityLifecycleCoordinating
     let quickActionHandler: LiveActivityQuickActionHandler
+    let liveActivityRouter: any LiveActivityQuickActionRouting
     let activeSessionViewModel: ActiveSessionViewModel
     let historyViewModel: HistoryListViewModel
     let diagnosticsExportViewModel: DiagnosticsExportViewModel
@@ -102,6 +103,7 @@ final class FeedTrackerDependencies {
             repository: repository,
             diagnostics: diagnosticsLogger
         )
+        self.liveActivityRouter = LiveActivityQuickActionRouter()
         self.activeSessionViewModel = ActiveSessionViewModel(
             engine: engine,
             repository: repository,
@@ -214,6 +216,12 @@ final class FeedTrackerDependencies {
     }
 
     func handleLiveActivityURL(_ url: URL) async {
+        if liveActivityRouter.isPassiveOpenURL(url) {
+            await reloadFromExternalSyncIfNeeded(source: "app.url.live_activity.passive_open")
+            reconcileLiveActivity(source: "app.url.live_activity.passive_open")
+            return
+        }
+
         do {
             _ = try await quickActionHandler.handle(url: url)
             reconcileLiveActivity(source: "app.url.live_activity")

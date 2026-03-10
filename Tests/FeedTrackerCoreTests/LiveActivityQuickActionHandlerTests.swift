@@ -160,6 +160,15 @@ final class LiveActivityQuickActionHandlerTests: XCTestCase {
         }
     }
 
+    func testRouterBuildsPassiveOpenURLWithoutAction() {
+        let router = LiveActivityQuickActionRouter()
+        let url = router.passiveOpenURL(sessionID: "session-123")
+
+        XCTAssertTrue(router.isPassiveOpenURL(url))
+        XCTAssertNil(router.action(from: url))
+        XCTAssertEqual(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "session" })?.value, "session-123")
+    }
+
     func testAttributesExposeMVP02ParityActionURLs() {
         let attrs = FeedTrackerLiveActivityAttributes(sessionID: UUID())
         XCTAssertTrue(attrs.switchSideActionURL.contains("action=switch_side"))

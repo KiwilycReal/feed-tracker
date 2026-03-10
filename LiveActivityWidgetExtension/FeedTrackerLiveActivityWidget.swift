@@ -237,7 +237,7 @@ struct FeedTrackerLiveActivityWidget: Widget {
     }
 
     private func appOpenURL(sessionID: String) -> URL? {
-        URL(string: "feedtracker://live-activity?session=\(sessionID)")
+        LiveActivityQuickActionRouter().passiveOpenURL(sessionID: sessionID)
     }
 
     private static func formattedDuration(_ duration: TimeInterval) -> String {
