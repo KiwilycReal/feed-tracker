@@ -23,20 +23,31 @@ final class UserDefaultsActiveSessionRecoveryStore: ActiveSessionRecoveryStoring
     }
 
     func load() throws -> SessionTimerRecoveryState? {
+        var lastError: Error?
+
         for (index, userDefaults) in userDefaultsStores.enumerated() {
             guard let data = userDefaults.data(forKey: key) else {
                 continue
             }
 
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            let state = try decoder.decode(SessionTimerRecoveryState.self, from: data)
+            do {
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+                let state = try decoder.decode(SessionTimerRecoveryState.self, from: data)
 
-            if index > 0 {
-                try save(state)
+                if index > 0 {
+                    try save(state)
+                }
+
+                return state
+            } catch {
+                lastError = error
+                continue
             }
+        }
 
-            return state
+        if let lastError {
+            throw lastError
         }
 
         return nil
@@ -67,6 +78,11 @@ final class FeedTrackerDependencies {
     let activeSessionRecoveryStore: any ActiveSessionRecoveryStoring
     let liveActivityCoordinator: any LiveActivityLifecycleCoordinating
     let quickActionHandler: LiveActivityQuickActionHandler
+    let activeSessionViewModel: ActiveSessionViewModel
+    let historyViewModel: HistoryListViewModel
+    let diagnosticsExportViewModel: DiagnosticsExportViewModel
+
+    private var lastHandledExternalSyncMarker: String?
 
     init() {
         self.engine = SessionTimerEngine()
@@ -86,6 +102,25 @@ final class FeedTrackerDependencies {
             repository: repository,
             diagnostics: diagnosticsLogger
         )
+        self.activeSessionViewModel = ActiveSessionViewModel(
+            engine: engine,
+            repository: repository,
+            diagnostics: diagnosticsLogger,
+            recoveryStore: activeSessionRecoveryStore,
+            liveActivityCoordinator: liveActivityCoordinator
+        )
+        self.historyViewModel = HistoryListViewModel(
+            repository: repository,
+            diagnostics: diagnosticsLogger
+        )
+        self.diagnosticsExportViewModel = DiagnosticsExportViewModel(
+            logger: diagnosticsLogger,
+            appVersionProvider: { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown" },
+            buildNumberProvider: { Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0" },
+            deviceModelProvider: { DeviceModel.currentIdentifier() },
+            sourceTag: "ios-app"
+        )
+        self.lastHandledExternalSyncMarker = FeedTrackerSharedStorage.readExternalSyncMarker()
     }
 
     private static func makeLiveActivityController() -> any LiveActivityControlling {
@@ -134,21 +169,40 @@ final class FeedTrackerDependencies {
             .appendingPathComponent("sessions.json")
     }
 
-    var appVersion: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
-    }
-
-    var buildNumber: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
-    }
-
     func reconcileLiveActivity(source: String) {
         liveActivityCoordinator.reconcile(snapshot: engine.snapshot(), source: source)
     }
 
-    func handleScenePhase(_ phase: ScenePhase) {
+    private func reloadFromExternalSyncIfNeeded(source: String) async {
+        guard let syncMarker = FeedTrackerSharedStorage.readExternalSyncMarker(),
+              syncMarker != lastHandledExternalSyncMarker else {
+            return
+        }
+
+        lastHandledExternalSyncMarker = syncMarker
+        activeSessionViewModel.reloadFromRecoveryStore(source: source)
+
+        do {
+            try await historyViewModel.reload()
+        } catch {
+            diagnosticsLogger.recordError(
+                context: "history.reload_external_sync",
+                message: error.localizedDescription,
+                metadata: [:],
+                source: "ios-app"
+            )
+        }
+    }
+
+    func handleAppLaunch() async {
+        await reloadFromExternalSyncIfNeeded(source: "app.launch.external_sync")
+        reconcileLiveActivity(source: "app.launch")
+    }
+
+    func handleScenePhase(_ phase: ScenePhase) async {
         switch phase {
         case .active:
+            await reloadFromExternalSyncIfNeeded(source: "app.scene.active.external_sync")
             reconcileLiveActivity(source: "app.scene.active")
         case .inactive:
             reconcileLiveActivity(source: "app.scene.inactive")
@@ -200,30 +254,19 @@ struct FeedTrackerApp: App {
     var body: some Scene {
         WindowGroup {
             FeedTrackerMainNavigationView(
-                activeSessionViewModel: ActiveSessionViewModel(
-                    engine: deps.engine,
-                    repository: deps.repository,
-                    diagnostics: deps.diagnosticsLogger,
-                    recoveryStore: deps.activeSessionRecoveryStore,
-                    liveActivityCoordinator: deps.liveActivityCoordinator
-                ),
-                historyViewModel: HistoryListViewModel(
-                    repository: deps.repository,
-                    diagnostics: deps.diagnosticsLogger
-                ),
-                diagnosticsExportViewModel: DiagnosticsExportViewModel(
-                    logger: deps.diagnosticsLogger,
-                    appVersionProvider: { deps.appVersion },
-                    buildNumberProvider: { deps.buildNumber },
-                    deviceModelProvider: { DeviceModel.currentIdentifier() },
-                    sourceTag: "ios-app"
-                )
+                activeSessionViewModel: deps.activeSessionViewModel,
+                historyViewModel: deps.historyViewModel,
+                diagnosticsExportViewModel: deps.diagnosticsExportViewModel
             )
             .onAppear {
-                deps.reconcileLiveActivity(source: "app.launch")
+                Task {
+                    await deps.handleAppLaunch()
+                }
             }
             .onChange(of: scenePhase) { _, newPhase in
-                deps.handleScenePhase(newPhase)
+                Task {
+                    await deps.handleScenePhase(newPhase)
+                }
             }
             .onOpenURL { url in
                 Task {

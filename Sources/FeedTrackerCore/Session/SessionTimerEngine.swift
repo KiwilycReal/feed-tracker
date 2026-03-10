@@ -217,6 +217,16 @@ public final class SessionTimerEngine {
         }
     }
 
+    public func reset() {
+        state = .idle
+        startedAt = nil
+        endedAt = nil
+        runningSide = nil
+        runningSince = nil
+        leftAccumulated = 0
+        rightAccumulated = 0
+    }
+
     public func restore(from recoveryState: SessionTimerRecoveryState) throws {
         guard recoveryState.leftAccumulated >= 0, recoveryState.rightAccumulated >= 0 else {
             throw SessionTimerEngineError.invalidRecoveryState

@@ -144,6 +144,22 @@ final class FileFeedingSessionRepositoryTests: XCTestCase {
         XCTAssertEqual(Set(sessions.map(\.id)), Set([legacySession.id, sharedSession.id]))
     }
 
+    func testSharedStorageExternalSyncMarkerRoundTripsThroughSharedDefaults() {
+        let suiteName = "feedtracker.tests.\(#function)"
+        let defaults = UserDefaults(suiteName: suiteName)
+        defaults?.removePersistentDomain(forName: suiteName)
+
+        let marker = FeedTrackerSharedStorage.writeExternalSyncMarker("marker-123", userDefaults: defaults)
+
+        XCTAssertEqual(marker, "marker-123")
+        XCTAssertEqual(
+            FeedTrackerSharedStorage.readExternalSyncMarker(userDefaults: defaults),
+            "marker-123"
+        )
+
+        defaults?.removePersistentDomain(forName: suiteName)
+    }
+
     private func makeTempStoreURL(testName: String) throws -> URL {
         let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("FeedTrackerCoreTests", isDirectory: true)

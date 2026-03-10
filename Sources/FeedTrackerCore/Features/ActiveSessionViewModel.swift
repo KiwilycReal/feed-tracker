@@ -62,6 +62,44 @@ public final class ActiveSessionViewModel: ObservableObject {
         displayState = displayState(for: engine.snapshot(at: date))
     }
 
+    public func reloadFromRecoveryStore(source: String) {
+        guard let recoveryStore else {
+            refresh()
+            syncLiveActivity(source: source)
+            return
+        }
+
+        do {
+            if let recoveryState = try recoveryStore.load() {
+                try engine.restore(from: recoveryState)
+                diagnostics?.record(
+                    category: "session_recovery",
+                    action: "reload_external_sync",
+                    metadata: ["status": recoveryState.status.rawValue],
+                    source: "active_session_vm"
+                )
+            } else {
+                engine.reset()
+                diagnostics?.record(
+                    category: "session_recovery",
+                    action: "reload_external_sync_reset",
+                    metadata: [:],
+                    source: "active_session_vm"
+                )
+            }
+
+            refresh()
+            syncLiveActivity(source: source)
+        } catch {
+            diagnostics?.recordError(
+                context: "session_recovery.reload_external_sync",
+                message: error.localizedDescription,
+                metadata: [:],
+                source: "active_session_vm"
+            )
+        }
+    }
+
     public func start(side: FeedingSide) throws {
         do {
             try engine.start(side)

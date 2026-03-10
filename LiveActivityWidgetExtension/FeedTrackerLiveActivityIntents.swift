@@ -124,6 +124,7 @@ private enum FeedTrackerLiveActivityIntentRuntime {
             try recoveryStore.clear()
         }
 
+        FeedTrackerSharedStorage.writeExternalSyncMarker()
         return handler.currentState()
     }
 

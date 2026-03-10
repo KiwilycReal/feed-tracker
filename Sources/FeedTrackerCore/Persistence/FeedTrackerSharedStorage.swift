@@ -4,6 +4,7 @@ public enum FeedTrackerSharedStorage {
     public static let appGroupIdentifier = "group.com.kiwilyc.feedtracker"
     public static let directoryName = "FeedTracker"
     public static let recoveryKey = "feedtracker.active_session_recovery.v1"
+    public static let syncMarkerKey = "feedtracker.external_sync_marker.v1"
 
     public static func sharedUserDefaults() -> UserDefaults? {
         UserDefaults(suiteName: appGroupIdentifier)
@@ -17,6 +18,21 @@ public enum FeedTrackerSharedStorage {
     public static func sessionsFileURL(fileManager: FileManager = .default) -> URL? {
         directoryURL(fileManager: fileManager)?
             .appendingPathComponent("sessions.json")
+    }
+
+    @discardableResult
+    public static func writeExternalSyncMarker(
+        _ marker: String = UUID().uuidString,
+        userDefaults: UserDefaults? = FeedTrackerSharedStorage.sharedUserDefaults()
+    ) -> String {
+        userDefaults?.set(marker, forKey: syncMarkerKey)
+        return marker
+    }
+
+    public static func readExternalSyncMarker(
+        userDefaults: UserDefaults? = FeedTrackerSharedStorage.sharedUserDefaults()
+    ) -> String? {
+        userDefaults?.string(forKey: syncMarkerKey)
     }
 
     public static func migrateLegacySessionsIfNeeded(
