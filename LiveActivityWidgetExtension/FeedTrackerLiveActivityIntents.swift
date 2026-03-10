@@ -62,9 +62,16 @@ struct FeedTrackerLiveActivityControlIntent: LiveActivityIntent {
 
 @available(iOSApplicationExtension 16.1, *)
 private enum FeedTrackerLiveActivityIntentRuntime {
-    private static let appGroupIdentifier = "group.com.kiwilyc.feedtracker"
-    private static let recoveryKey = "feedtracker.active_session_recovery.v1"
-    private static let feedTrackerDirectoryName = "FeedTracker"
+    enum RuntimeError: LocalizedError {
+        case sharedContainerUnavailable
+
+        var errorDescription: String? {
+            switch self {
+            case .sharedContainerUnavailable:
+                return "Shared FeedTracker app-group storage is unavailable."
+            }
+        }
+    }
 
     static func execute(action: LiveActivityQuickAction) async throws -> LiveActivityState {
         try await executeOnMain(action: action)
@@ -94,88 +101,51 @@ private enum FeedTrackerLiveActivityIntentRuntime {
     @MainActor
     private static func executeOnMain(action: LiveActivityQuickAction) async throws -> LiveActivityState {
         let engine = SessionTimerEngine()
-        let recoveryStores = makeRecoveryStores()
+        let recoveryStore = try makeRecoveryStore()
 
-        if let recoveryState = try loadRecoveryState(from: recoveryStores) {
+        if let recoveryState = try recoveryStore.load() {
             do {
                 try engine.restore(from: recoveryState)
             } catch {
-                try clearRecoveryState(in: recoveryStores)
+                try recoveryStore.clear()
             }
         }
 
         let handler = LiveActivityQuickActionHandler(
             engine: engine,
-            repository: makeRepository()
+            repository: try makeRepository()
         )
 
         _ = try await handler.handle(action)
 
         if let persistedState = engine.recoveryStateForPersistence() {
-            try saveRecoveryState(persistedState, in: recoveryStores)
+            try recoveryStore.save(persistedState)
         } else {
-            try clearRecoveryState(in: recoveryStores)
+            try recoveryStore.clear()
         }
 
         return handler.currentState()
     }
 
+    private static func makeRecoveryStore() throws -> RecoveryStore {
+        guard let sharedDefaults = FeedTrackerSharedStorage.sharedUserDefaults() else {
+            throw RuntimeError.sharedContainerUnavailable
+        }
+
+        return RecoveryStore(
+            userDefaults: sharedDefaults,
+            key: FeedTrackerSharedStorage.recoveryKey
+        )
+    }
+
     @MainActor
-    private static func makeRepository() -> any FeedingSessionRepository {
-        guard let fileURL = sessionsFileURL(),
+    private static func makeRepository() throws -> any FeedingSessionRepository {
+        guard let fileURL = FeedTrackerSharedStorage.sessionsFileURL(),
               let repository = try? FileFeedingSessionRepository(fileURL: fileURL) else {
-            return InMemoryFeedingSessionRepository()
+            throw RuntimeError.sharedContainerUnavailable
         }
 
         return repository
-    }
-
-    private static func makeRecoveryStores() -> [RecoveryStore] {
-        var stores = [RecoveryStore(userDefaults: .standard, key: recoveryKey)]
-
-        if let sharedDefaults = UserDefaults(suiteName: appGroupIdentifier) {
-            stores.append(RecoveryStore(userDefaults: sharedDefaults, key: recoveryKey))
-        }
-
-        return stores
-    }
-
-    private static func loadRecoveryState(from stores: [RecoveryStore]) throws -> SessionTimerRecoveryState? {
-        for store in stores {
-            if let state = try store.load() {
-                return state
-            }
-        }
-
-        return nil
-    }
-
-    private static func saveRecoveryState(_ state: SessionTimerRecoveryState, in stores: [RecoveryStore]) throws {
-        for store in stores {
-            try store.save(state)
-        }
-    }
-
-    private static func clearRecoveryState(in stores: [RecoveryStore]) throws {
-        for store in stores {
-            try store.clear()
-        }
-    }
-
-    private static func sessionsFileURL(fileManager: FileManager = .default) -> URL? {
-        if let appSupportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
-            return appSupportURL
-                .appendingPathComponent(feedTrackerDirectoryName, isDirectory: true)
-                .appendingPathComponent("sessions.json")
-        }
-
-        if let containerURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) {
-            return containerURL
-                .appendingPathComponent(feedTrackerDirectoryName, isDirectory: true)
-                .appendingPathComponent("sessions.json")
-        }
-
-        return nil
     }
 }
 

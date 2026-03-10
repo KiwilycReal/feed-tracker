@@ -3,36 +3,59 @@ import FeedTrackerCore
 import Darwin
 
 final class UserDefaultsActiveSessionRecoveryStore: ActiveSessionRecoveryStoring {
-    private let userDefaults: UserDefaults
+    private let userDefaultsStores: [UserDefaults]
     private let key: String
 
     init(
         userDefaults: UserDefaults = .standard,
-        key: String = "feedtracker.active_session_recovery.v1"
+        key: String = FeedTrackerSharedStorage.recoveryKey
     ) {
-        self.userDefaults = userDefaults
+        self.userDefaultsStores = [userDefaults]
+        self.key = key
+    }
+
+    init(
+        userDefaultsStores: [UserDefaults],
+        key: String = FeedTrackerSharedStorage.recoveryKey
+    ) {
+        self.userDefaultsStores = userDefaultsStores
         self.key = key
     }
 
     func load() throws -> SessionTimerRecoveryState? {
-        guard let data = userDefaults.data(forKey: key) else {
-            return nil
+        for (index, userDefaults) in userDefaultsStores.enumerated() {
+            guard let data = userDefaults.data(forKey: key) else {
+                continue
+            }
+
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let state = try decoder.decode(SessionTimerRecoveryState.self, from: data)
+
+            if index > 0 {
+                try save(state)
+            }
+
+            return state
         }
 
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return try decoder.decode(SessionTimerRecoveryState.self, from: data)
+        return nil
     }
 
     func save(_ state: SessionTimerRecoveryState) throws {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         let data = try encoder.encode(state)
-        userDefaults.set(data, forKey: key)
+
+        for userDefaults in userDefaultsStores {
+            userDefaults.set(data, forKey: key)
+        }
     }
 
     func clear() throws {
-        userDefaults.removeObject(forKey: key)
+        for userDefaults in userDefaultsStores {
+            userDefaults.removeObject(forKey: key)
+        }
     }
 }
 
@@ -48,18 +71,10 @@ final class FeedTrackerDependencies {
     init() {
         self.engine = SessionTimerEngine()
         self.diagnosticsLogger = DiagnosticsEventLogger(defaultSourceTag: "ios-app")
-        self.activeSessionRecoveryStore = UserDefaultsActiveSessionRecoveryStore()
-
-        let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-        let dataURL = supportDir?
-            .appendingPathComponent("FeedTracker", isDirectory: true)
-            .appendingPathComponent("sessions.json")
-
-        if let dataURL, let fileRepo = try? FileFeedingSessionRepository(fileURL: dataURL) {
-            self.repository = fileRepo
-        } else {
-            self.repository = InMemoryFeedingSessionRepository()
-        }
+        self.activeSessionRecoveryStore = UserDefaultsActiveSessionRecoveryStore(
+            userDefaultsStores: FeedTrackerDependencies.makeRecoveryStores()
+        )
+        self.repository = FeedTrackerDependencies.makeRepository()
 
         let controller = FeedTrackerDependencies.makeLiveActivityController()
         self.liveActivityCoordinator = LiveActivityLifecycleCoordinator(
@@ -80,6 +95,61 @@ final class FeedTrackerDependencies {
         }
 #endif
         return NoopLiveActivityController()
+    }
+
+    private static func makeRecoveryStores() -> [UserDefaults] {
+        if let sharedDefaults = FeedTrackerSharedStorage.sharedUserDefaults() {
+            return [sharedDefaults, .standard]
+        }
+
+        return [.standard]
+    }
+
+    private static func makeRepository(fileManager: FileManager = .default) -> any FeedingSessionRepository {
+        let legacyURL = legacySessionsFileURL(fileManager: fileManager)
+
+        if let sharedURL = FeedTrackerSharedStorage.sessionsFileURL(fileManager: fileManager) {
+            migrateLegacySessionsIfNeeded(from: legacyURL, to: sharedURL, fileManager: fileManager)
+
+            if let repository = try? FileFeedingSessionRepository(fileURL: sharedURL) {
+                return repository
+            }
+        }
+
+        if let legacyURL,
+           let repository = try? FileFeedingSessionRepository(fileURL: legacyURL) {
+            return repository
+        }
+
+        return InMemoryFeedingSessionRepository()
+    }
+
+    private static func legacySessionsFileURL(fileManager: FileManager = .default) -> URL? {
+        fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+            .appendingPathComponent(FeedTrackerSharedStorage.directoryName, isDirectory: true)
+            .appendingPathComponent("sessions.json")
+    }
+
+    private static func migrateLegacySessionsIfNeeded(
+        from legacyURL: URL?,
+        to sharedURL: URL,
+        fileManager: FileManager = .default
+    ) {
+        guard let legacyURL,
+              fileManager.fileExists(atPath: legacyURL.path),
+              !fileManager.fileExists(atPath: sharedURL.path) else {
+            return
+        }
+
+        do {
+            try fileManager.createDirectory(
+                at: sharedURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try fileManager.copyItem(at: legacyURL, to: sharedURL)
+        } catch {
+            // keep using whichever repository location can still initialize
+        }
     }
 
     var appVersion: String {
