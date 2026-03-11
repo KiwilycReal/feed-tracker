@@ -54,12 +54,51 @@ public final class ActiveSessionViewModel: ObservableObject {
         self.displayState = .idle
 
         restoreRecoveredState()
-        self.displayState = ActiveSessionDisplayState(snapshot: engine.snapshot())
+        self.displayState = displayState(for: engine.snapshot())
         syncLiveActivity(source: "active_session_vm.init")
     }
 
     public func refresh(at date: Date? = nil) {
-        displayState = ActiveSessionDisplayState(snapshot: engine.snapshot(at: date))
+        displayState = displayState(for: engine.snapshot(at: date))
+    }
+
+    public func reloadFromRecoveryStore(source: String) {
+        guard let recoveryStore else {
+            refresh()
+            syncLiveActivity(source: source)
+            return
+        }
+
+        do {
+            if let recoveryState = try recoveryStore.load(strategy: .primaryStoreAuthoritativeWhenMissing) {
+                try engine.restore(from: recoveryState)
+                diagnostics?.record(
+                    category: "session_recovery",
+                    action: "reload_external_sync",
+                    metadata: ["status": recoveryState.status.rawValue],
+                    source: "active_session_vm"
+                )
+            } else {
+                try recoveryStore.clear()
+                engine.reset()
+                diagnostics?.record(
+                    category: "session_recovery",
+                    action: "reload_external_sync_reset",
+                    metadata: [:],
+                    source: "active_session_vm"
+                )
+            }
+
+            refresh()
+            syncLiveActivity(source: source)
+        } catch {
+            diagnostics?.recordError(
+                context: "session_recovery.reload_external_sync",
+                message: error.localizedDescription,
+                metadata: [:],
+                source: "active_session_vm"
+            )
+        }
     }
 
     public func start(side: FeedingSide) throws {
@@ -281,6 +320,14 @@ public final class ActiveSessionViewModel: ObservableObject {
                 source: "active_session_vm"
             )
         }
+    }
+
+    private func displayState(for snapshot: SessionTimerSnapshot) -> ActiveSessionDisplayState {
+        if case .ended = snapshot.state {
+            return .idle
+        }
+
+        return ActiveSessionDisplayState(snapshot: snapshot)
     }
 
     private func syncLiveActivity(source: String) {

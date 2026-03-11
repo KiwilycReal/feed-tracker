@@ -107,12 +107,35 @@ final class ActiveSessionRecoveryTests: XCTestCase {
         XCTAssertEqual(restoredViewModel.displayState.state, .running(side: .left))
         XCTAssertEqual(restoredViewModel.displayState.leftElapsed, 55, accuracy: 0.001)
     }
+
+    func testExternalSyncReloadUsesAuthoritativePrimaryMissingStrategy() throws {
+        let clock = RecoveryTestClock(start: Date(timeIntervalSince1970: 90_000))
+        let repository = InMemoryFeedingSessionRepository()
+        let store = StrategyRecordingRecoveryStore()
+        let engine = SessionTimerEngine(now: { clock.now })
+        let viewModel = ActiveSessionViewModel(
+            engine: engine,
+            repository: repository,
+            recoveryStore: store
+        )
+
+        try viewModel.start(side: .right)
+        XCTAssertEqual(store.recordedStrategies.first, .fallbackAllowed)
+
+        store.nextLoadResult = nil
+        viewModel.reloadFromRecoveryStore(source: "test.external_sync")
+
+        XCTAssertEqual(store.recordedStrategies.last, .primaryStoreAuthoritativeWhenMissing)
+        XCTAssertEqual(store.clearCallCount, 1)
+        XCTAssertEqual(viewModel.displayState.state, .idle)
+        XCTAssertEqual(viewModel.displayState.totalElapsed, 0, accuracy: 0.001)
+    }
 }
 
 private final class InMemoryActiveSessionRecoveryStore: ActiveSessionRecoveryStoring {
     private var storedState: SessionTimerRecoveryState?
 
-    func load() throws -> SessionTimerRecoveryState? {
+    func load(strategy: ActiveSessionRecoveryLoadStrategy) throws -> SessionTimerRecoveryState? {
         storedState
     }
 
@@ -122,6 +145,26 @@ private final class InMemoryActiveSessionRecoveryStore: ActiveSessionRecoverySto
 
     func clear() throws {
         storedState = nil
+    }
+}
+
+private final class StrategyRecordingRecoveryStore: ActiveSessionRecoveryStoring {
+    var nextLoadResult: SessionTimerRecoveryState?
+    private(set) var recordedStrategies: [ActiveSessionRecoveryLoadStrategy] = []
+    private(set) var clearCallCount = 0
+
+    func load(strategy: ActiveSessionRecoveryLoadStrategy) throws -> SessionTimerRecoveryState? {
+        recordedStrategies.append(strategy)
+        return nextLoadResult
+    }
+
+    func save(_ state: SessionTimerRecoveryState) throws {
+        nextLoadResult = state
+    }
+
+    func clear() throws {
+        clearCallCount += 1
+        nextLoadResult = nil
     }
 }
 
