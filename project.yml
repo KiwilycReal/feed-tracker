@@ -27,7 +27,7 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
         INFOPLIST_KEY_NSSupportsLiveActivities: YES
         SWIFT_VERSION: 5.0
-        CURRENT_PROJECT_VERSION: 20260304083115
+        CURRENT_PROJECT_VERSION: 20260311221800
         MARKETING_VERSION: 0.2.0
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: App/FeedTracker.entitlements
@@ -48,7 +48,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.kiwilyc.feedtracker.LiveActivityWidgetExtension
         INFOPLIST_FILE: LiveActivityWidgetExtension/Info.plist
         SWIFT_VERSION: 5.0
-        CURRENT_PROJECT_VERSION: 20260304083115
+        CURRENT_PROJECT_VERSION: 20260311221800
         MARKETING_VERSION: 0.2.0
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: LiveActivityWidgetExtension/FeedTrackerLiveActivityWidgetExtension.entitlements
