@@ -126,6 +126,7 @@ final class ActiveSessionRecoveryTests: XCTestCase {
         viewModel.reloadFromRecoveryStore(source: "test.external_sync")
 
         XCTAssertEqual(store.recordedStrategies.last, .primaryStoreAuthoritativeWhenMissing)
+        XCTAssertEqual(store.clearCallCount, 1)
         XCTAssertEqual(viewModel.displayState.state, .idle)
         XCTAssertEqual(viewModel.displayState.totalElapsed, 0, accuracy: 0.001)
     }
@@ -150,6 +151,7 @@ private final class InMemoryActiveSessionRecoveryStore: ActiveSessionRecoverySto
 private final class StrategyRecordingRecoveryStore: ActiveSessionRecoveryStoring {
     var nextLoadResult: SessionTimerRecoveryState?
     private(set) var recordedStrategies: [ActiveSessionRecoveryLoadStrategy] = []
+    private(set) var clearCallCount = 0
 
     func load(strategy: ActiveSessionRecoveryLoadStrategy) throws -> SessionTimerRecoveryState? {
         recordedStrategies.append(strategy)
@@ -161,6 +163,7 @@ private final class StrategyRecordingRecoveryStore: ActiveSessionRecoveryStoring
     }
 
     func clear() throws {
+        clearCallCount += 1
         nextLoadResult = nil
     }
 }

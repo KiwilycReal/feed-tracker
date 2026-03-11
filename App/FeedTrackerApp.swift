@@ -24,11 +24,16 @@ final class UserDefaultsActiveSessionRecoveryStore: ActiveSessionRecoveryStoring
 
     func load(strategy: ActiveSessionRecoveryLoadStrategy) throws -> SessionTimerRecoveryState? {
         var lastError: Error?
+        var primaryStoreWasMissing = false
 
         for (index, userDefaults) in userDefaultsStores.enumerated() {
             guard let data = userDefaults.data(forKey: key) else {
-                if index == 0, strategy == .primaryStoreAuthoritativeWhenMissing {
-                    return nil
+                if index == 0 {
+                    primaryStoreWasMissing = true
+
+                    if strategy == .primaryStoreAuthoritativeWhenMissing {
+                        return nil
+                    }
                 }
                 continue
             }
@@ -38,7 +43,7 @@ final class UserDefaultsActiveSessionRecoveryStore: ActiveSessionRecoveryStoring
                 decoder.dateDecodingStrategy = .iso8601
                 let state = try decoder.decode(SessionTimerRecoveryState.self, from: data)
 
-                if index > 0 {
+                if index > 0, primaryStoreWasMissing == false {
                     try save(state)
                 }
 

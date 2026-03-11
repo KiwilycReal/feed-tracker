@@ -79,6 +79,7 @@ public final class ActiveSessionViewModel: ObservableObject {
                     source: "active_session_vm"
                 )
             } else {
+                try recoveryStore.clear()
                 engine.reset()
                 diagnostics?.record(
                     category: "session_recovery",
