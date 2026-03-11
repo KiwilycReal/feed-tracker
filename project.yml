@@ -30,6 +30,7 @@ targets:
         CURRENT_PROJECT_VERSION: 20260304083115
         MARKETING_VERSION: 0.2.0
         CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: App/FeedTracker.entitlements
     dependencies:
       - package: FeedTrackerCorePkg
         product: FeedTrackerCore
@@ -50,6 +51,7 @@ targets:
         CURRENT_PROJECT_VERSION: 20260304083115
         MARKETING_VERSION: 0.2.0
         CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: LiveActivityWidgetExtension/FeedTrackerLiveActivityWidgetExtension.entitlements
         APPLICATION_EXTENSION_API_ONLY: YES
     dependencies:
       - package: FeedTrackerCorePkg

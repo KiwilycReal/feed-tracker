@@ -168,13 +168,12 @@ public final class LiveActivityQuickActionHandler {
             try engine.pause()
 
         case .paused:
-            // idempotent pause
-            return
+            try engine.resume()
 
         case .idle, .stopped, .ended:
             diagnostics?.record(
                 category: "live_activity",
-                action: "pause_ignored",
+                action: "pause_toggle_ignored",
                 metadata: ["state": stateLabel(state)],
                 source: "live_activity_handler"
             )

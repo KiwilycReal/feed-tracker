@@ -12,6 +12,7 @@
 		5AF8DF3EAC645D4EB0C58887 /* FeedTrackerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04E38D7276AA77212BE91AA3 /* FeedTrackerApp.swift */; };
 		80C0FFB1FB9AA2172220E602 /* FeedTrackerCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4E9622CF843E4D5E5BD32AE3 /* FeedTrackerCore */; };
 		8424615CAA24E7821DFC88F6 /* FeedTrackerLiveActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7693EE64399C604A331988C6 /* FeedTrackerLiveActivityWidget.swift */; };
+		8BFA750FCF16B3C9C37FA77F /* FeedTrackerLiveActivityIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FF56810ABA4535CDF7E083D /* FeedTrackerLiveActivityIntents.swift */; };
 		BEBC38355E98D0C9979E9895 /* FeedTrackerLiveActivityWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = ECA8BD98DE0EA5BF030F5A9E /* FeedTrackerLiveActivityWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
@@ -43,8 +44,11 @@
 		04E38D7276AA77212BE91AA3 /* FeedTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedTrackerApp.swift; sourceTree = "<group>"; };
 		0D25A00D10CEAA8833BE6C8A /* FeedTracker.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FeedTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0F568BCADE1EBB396D967108 /* feed-tracker */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "feed-tracker"; path = .; sourceTree = SOURCE_ROOT; };
+		1FF56810ABA4535CDF7E083D /* FeedTrackerLiveActivityIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedTrackerLiveActivityIntents.swift; sourceTree = "<group>"; };
 		3E115FBA52DA4CF25106AA57 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		7693EE64399C604A331988C6 /* FeedTrackerLiveActivityWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedTrackerLiveActivityWidget.swift; sourceTree = "<group>"; };
+		8E574B41099236770D70FD1F /* FeedTrackerLiveActivityWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FeedTrackerLiveActivityWidgetExtension.entitlements; sourceTree = "<group>"; };
+		8F6364854495A3D71B1147E1 /* FeedTracker.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FeedTracker.entitlements; sourceTree = "<group>"; };
 		ECA8BD98DE0EA5BF030F5A9E /* FeedTrackerLiveActivityWidgetExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = FeedTrackerLiveActivityWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		F4532E3D088626DD0EA45544 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -72,7 +76,9 @@
 		84DC881D3707D4A00329D785 /* LiveActivityWidgetExtension */ = {
 			isa = PBXGroup;
 			children = (
+				1FF56810ABA4535CDF7E083D /* FeedTrackerLiveActivityIntents.swift */,
 				7693EE64399C604A331988C6 /* FeedTrackerLiveActivityWidget.swift */,
+				8E574B41099236770D70FD1F /* FeedTrackerLiveActivityWidgetExtension.entitlements */,
 				3E115FBA52DA4CF25106AA57 /* Info.plist */,
 			);
 			path = LiveActivityWidgetExtension;
@@ -101,6 +107,7 @@
 			isa = PBXGroup;
 			children = (
 				F4532E3D088626DD0EA45544 /* Assets.xcassets */,
+				8F6364854495A3D71B1147E1 /* FeedTracker.entitlements */,
 				04E38D7276AA77212BE91AA3 /* FeedTrackerApp.swift */,
 			);
 			path = App;
@@ -214,6 +221,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8BFA750FCF16B3C9C37FA77F /* FeedTrackerLiveActivityIntents.swift in Sources */,
 				8424615CAA24E7821DFC88F6 /* FeedTrackerLiveActivityWidget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -360,6 +368,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = LiveActivityWidgetExtension/FeedTrackerLiveActivityWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 20260304083115;
 				INFOPLIST_FILE = LiveActivityWidgetExtension/Info.plist;
@@ -381,6 +390,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = LiveActivityWidgetExtension/FeedTrackerLiveActivityWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 20260304083115;
 				INFOPLIST_FILE = LiveActivityWidgetExtension/Info.plist;
@@ -402,6 +412,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/FeedTracker.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 20260304083115;
@@ -429,6 +440,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/FeedTracker.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 20260304083115;

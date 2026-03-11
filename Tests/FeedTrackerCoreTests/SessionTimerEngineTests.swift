@@ -109,6 +109,22 @@ final class SessionTimerEngineTests: XCTestCase {
             )
         }
     }
+
+    func testResetClearsRecoveredOrRunningStateBackToIdle() throws {
+        let clock = TestClock(start: Date(timeIntervalSince1970: 3_100))
+        let engine = SessionTimerEngine(now: { clock.now })
+
+        try engine.start(.right)
+        clock.advance(seconds: 14)
+        engine.reset()
+
+        let snapshot = engine.snapshot()
+        XCTAssertEqual(snapshot.state, .idle)
+        XCTAssertNil(snapshot.activeSide)
+        XCTAssertEqual(snapshot.leftElapsed, 0, accuracy: 0.001)
+        XCTAssertEqual(snapshot.rightElapsed, 0, accuracy: 0.001)
+        XCTAssertEqual(snapshot.totalElapsed, 0, accuracy: 0.001)
+    }
 }
 
 private final class TestClock {

@@ -22,7 +22,7 @@ final class LiveActivityQuickActionHandlerTests: XCTestCase {
         XCTAssertEqual(state.rightElapsed, 12, accuracy: 0.001)
     }
 
-    func testPauseSessionIsIdempotent() async throws {
+    func testPauseSessionTogglesToResumeWhenAlreadyPaused() async throws {
         let clock = QuickActionTestClock(start: Date(timeIntervalSince1970: 50_000))
         let engine = SessionTimerEngine(now: { clock.now })
         let repository = InMemoryFeedingSessionRepository()
@@ -36,13 +36,14 @@ final class LiveActivityQuickActionHandlerTests: XCTestCase {
         XCTAssertEqual(pausedSnapshot.timerStatus, .paused)
         XCTAssertEqual(pausedSnapshot.rightElapsed, 10, accuracy: 0.001)
 
-        // repeated pause should be no-op and not throw
         try await handler.handle(.pauseSession)
-        clock.advance(seconds: 15)
+        let resumedSnapshot = handler.currentState(at: clock.now)
+        XCTAssertEqual(resumedSnapshot.timerStatus, .running)
+        XCTAssertEqual(resumedSnapshot.activeSide, .right)
 
-        let stillPaused = handler.currentState(at: clock.now)
-        XCTAssertEqual(stillPaused.timerStatus, .paused)
-        XCTAssertEqual(stillPaused.rightElapsed, 10, accuracy: 0.001)
+        clock.advance(seconds: 15)
+        let advancedSnapshot = handler.currentState(at: clock.now)
+        XCTAssertEqual(advancedSnapshot.rightElapsed, 25, accuracy: 0.001)
     }
 
     func testTerminateSessionPersistsCompletedSession() async throws {
@@ -157,6 +158,15 @@ final class LiveActivityQuickActionHandlerTests: XCTestCase {
             let url = router.url(for: action)
             XCTAssertEqual(router.action(from: url), action)
         }
+    }
+
+    func testRouterBuildsPassiveOpenURLWithoutAction() {
+        let router = LiveActivityQuickActionRouter()
+        let url = router.passiveOpenURL(sessionID: "session-123")
+
+        XCTAssertTrue(router.isPassiveOpenURL(url))
+        XCTAssertNil(router.action(from: url))
+        XCTAssertEqual(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "session" })?.value, "session-123")
     }
 
     func testAttributesExposeMVP02ParityActionURLs() {
