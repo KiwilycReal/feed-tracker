@@ -15,6 +15,7 @@ public enum SessionTimerEngineError: Error, Equatable, Sendable {
 }
 
 public struct SessionTimerSnapshot: Equatable, Sendable {
+    public let sessionID: UUID?
     public let state: SessionTimerState
     public let activeSide: FeedingSide?
     public let leftElapsed: TimeInterval
@@ -22,6 +23,26 @@ public struct SessionTimerSnapshot: Equatable, Sendable {
     public let totalElapsed: TimeInterval
     public let startedAt: Date?
     public let endedAt: Date?
+
+    public init(
+        sessionID: UUID? = nil,
+        state: SessionTimerState,
+        activeSide: FeedingSide?,
+        leftElapsed: TimeInterval,
+        rightElapsed: TimeInterval,
+        totalElapsed: TimeInterval,
+        startedAt: Date?,
+        endedAt: Date?
+    ) {
+        self.sessionID = sessionID
+        self.state = state
+        self.activeSide = activeSide
+        self.leftElapsed = leftElapsed
+        self.rightElapsed = rightElapsed
+        self.totalElapsed = totalElapsed
+        self.startedAt = startedAt
+        self.endedAt = endedAt
+    }
 }
 
 public enum SessionTimerRecoveryStatus: String, Codable, Equatable, Sendable {
@@ -33,30 +54,114 @@ public enum SessionTimerRecoveryStatus: String, Codable, Equatable, Sendable {
 }
 
 public struct SessionTimerRecoveryState: Codable, Equatable, Sendable {
+    public let sessionID: UUID
     public let status: SessionTimerRecoveryStatus
     public let startedAt: Date
     public let runningSince: Date?
     public let leftAccumulated: TimeInterval
     public let rightAccumulated: TimeInterval
 
+    private enum CodingKeys: String, CodingKey {
+        case sessionID
+        case status
+        case startedAt
+        case runningSince
+        case leftAccumulated
+        case rightAccumulated
+    }
+
     public init(
+        sessionID: UUID = UUID(),
         status: SessionTimerRecoveryStatus,
         startedAt: Date,
         runningSince: Date?,
         leftAccumulated: TimeInterval,
         rightAccumulated: TimeInterval
     ) {
+        self.sessionID = sessionID
         self.status = status
         self.startedAt = startedAt
         self.runningSince = runningSince
         self.leftAccumulated = leftAccumulated
         self.rightAccumulated = rightAccumulated
     }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.status = try container.decode(SessionTimerRecoveryStatus.self, forKey: .status)
+        self.startedAt = try container.decode(Date.self, forKey: .startedAt)
+        self.runningSince = try container.decodeIfPresent(Date.self, forKey: .runningSince)
+        self.leftAccumulated = try container.decode(TimeInterval.self, forKey: .leftAccumulated)
+        self.rightAccumulated = try container.decode(TimeInterval.self, forKey: .rightAccumulated)
+        self.sessionID = try container.decodeIfPresent(UUID.self, forKey: .sessionID)
+            ?? Self.legacyDeterministicSessionID(
+                status: status,
+                startedAt: startedAt,
+                runningSince: runningSince,
+                leftAccumulated: leftAccumulated,
+                rightAccumulated: rightAccumulated
+            )
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(sessionID, forKey: .sessionID)
+        try container.encode(status, forKey: .status)
+        try container.encode(startedAt, forKey: .startedAt)
+        try container.encodeIfPresent(runningSince, forKey: .runningSince)
+        try container.encode(leftAccumulated, forKey: .leftAccumulated)
+        try container.encode(rightAccumulated, forKey: .rightAccumulated)
+    }
+
+    private static func legacyDeterministicSessionID(
+        status: SessionTimerRecoveryStatus,
+        startedAt: Date,
+        runningSince: Date?,
+        leftAccumulated: TimeInterval,
+        rightAccumulated: TimeInterval
+    ) -> UUID {
+        let payload = [
+            status.rawValue,
+            startedAt.ISO8601Format(),
+            runningSince?.ISO8601Format() ?? "nil",
+            String(leftAccumulated.bitPattern),
+            String(rightAccumulated.bitPattern)
+        ].joined(separator: "|")
+
+        let first = fnv1a64(payload.utf8)
+        let second = fnv1a64((payload + "|feedtracker.legacy").utf8)
+        var bytes = [UInt8](repeating: 0, count: 16)
+
+        for index in 0..<8 {
+            bytes[index] = UInt8((first >> UInt64((7 - index) * 8)) & 0xFF)
+            bytes[8 + index] = UInt8((second >> UInt64((7 - index) * 8)) & 0xFF)
+        }
+
+        bytes[6] = (bytes[6] & 0x0F) | 0x50
+        bytes[8] = (bytes[8] & 0x3F) | 0x80
+
+        return UUID(uuid: (
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[8], bytes[9], bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15]
+        ))
+    }
+
+    private static func fnv1a64<C: Collection>(_ bytes: C) -> UInt64 where C.Element == UInt8 {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in bytes {
+            hash ^= UInt64(byte)
+            hash &*= 0x100000001b3
+        }
+        return hash
+    }
 }
 
 public final class SessionTimerEngine {
     private let now: @Sendable () -> Date
 
+    private var sessionID: UUID?
     private var state: SessionTimerState = .idle
     private var startedAt: Date?
     private var endedAt: Date?
@@ -74,6 +179,7 @@ public final class SessionTimerEngine {
 
         switch state {
         case .idle, .ended:
+            sessionID = UUID()
             startedAt = current
             endedAt = nil
             leftAccumulated = 0
@@ -168,6 +274,7 @@ public final class SessionTimerEngine {
         state = .ended
 
         return try FeedingSession(
+            id: sessionID ?? UUID(),
             startedAt: startedAt ?? current,
             endedAt: endedAt,
             leftDuration: leftAccumulated,
@@ -178,7 +285,7 @@ public final class SessionTimerEngine {
     }
 
     public func recoveryStateForPersistence() -> SessionTimerRecoveryState? {
-        guard let startedAt else {
+        guard let startedAt, let sessionID else {
             return nil
         }
 
@@ -189,6 +296,7 @@ public final class SessionTimerEngine {
         case .running(let side):
             let status: SessionTimerRecoveryStatus = side == .left ? .runningLeft : .runningRight
             return SessionTimerRecoveryState(
+                sessionID: sessionID,
                 status: status,
                 startedAt: startedAt,
                 runningSince: runningSince,
@@ -199,6 +307,7 @@ public final class SessionTimerEngine {
         case .paused(let side):
             let status: SessionTimerRecoveryStatus = side == .left ? .pausedLeft : .pausedRight
             return SessionTimerRecoveryState(
+                sessionID: sessionID,
                 status: status,
                 startedAt: startedAt,
                 runningSince: nil,
@@ -208,6 +317,7 @@ public final class SessionTimerEngine {
 
         case .stopped:
             return SessionTimerRecoveryState(
+                sessionID: sessionID,
                 status: .stopped,
                 startedAt: startedAt,
                 runningSince: nil,
@@ -218,6 +328,7 @@ public final class SessionTimerEngine {
     }
 
     public func reset() {
+        sessionID = nil
         state = .idle
         startedAt = nil
         endedAt = nil
@@ -232,6 +343,7 @@ public final class SessionTimerEngine {
             throw SessionTimerEngineError.invalidRecoveryState
         }
 
+        self.sessionID = recoveryState.sessionID
         self.startedAt = recoveryState.startedAt
         self.endedAt = nil
         self.leftAccumulated = recoveryState.leftAccumulated
@@ -281,6 +393,7 @@ public final class SessionTimerEngine {
         }
 
         return SessionTimerSnapshot(
+            sessionID: sessionID,
             state: state,
             activeSide: activeSide(for: state),
             leftElapsed: leftElapsed,

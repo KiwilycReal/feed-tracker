@@ -190,7 +190,7 @@ final class FeedTrackerDependencies {
         }
 
         lastHandledExternalSyncMarker = syncMarker
-        activeSessionViewModel.reloadFromRecoveryStore(source: source)
+        await activeSessionViewModel.reloadFromRecoveryStore(source: source)
 
         do {
             try await historyViewModel.reload()

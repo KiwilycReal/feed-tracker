@@ -125,6 +125,28 @@ final class SessionTimerEngineTests: XCTestCase {
         XCTAssertEqual(snapshot.rightElapsed, 0, accuracy: 0.001)
         XCTAssertEqual(snapshot.totalElapsed, 0, accuracy: 0.001)
     }
+
+    func testRecoveryStateDecodesLegacyPayloadWithoutSessionID() throws {
+        let legacyPayload = """
+        {
+          \"status\": \"runningLeft\",
+          \"startedAt\": \"2026-03-20T12:00:00Z\",
+          \"runningSince\": \"2026-03-20T12:00:10Z\",
+          \"leftAccumulated\": 12,
+          \"rightAccumulated\": 3
+        }
+        """.data(using: .utf8)!
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let recoveryState = try decoder.decode(SessionTimerRecoveryState.self, from: legacyPayload)
+        let decodedAgain = try decoder.decode(SessionTimerRecoveryState.self, from: legacyPayload)
+
+        XCTAssertEqual(recoveryState.status, .runningLeft)
+        XCTAssertEqual(recoveryState.leftAccumulated, 12, accuracy: 0.001)
+        XCTAssertEqual(recoveryState.rightAccumulated, 3, accuracy: 0.001)
+        XCTAssertEqual(recoveryState.sessionID, decodedAgain.sessionID)
+    }
 }
 
 private final class TestClock {
