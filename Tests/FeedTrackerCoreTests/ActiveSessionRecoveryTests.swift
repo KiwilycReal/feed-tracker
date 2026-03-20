@@ -108,7 +108,7 @@ final class ActiveSessionRecoveryTests: XCTestCase {
         XCTAssertEqual(restoredViewModel.displayState.leftElapsed, 55, accuracy: 0.001)
     }
 
-    func testExternalSyncReloadUsesAuthoritativePrimaryMissingStrategy() throws {
+    func testExternalSyncReloadUsesAuthoritativePrimaryMissingStrategy() async throws {
         let clock = RecoveryTestClock(start: Date(timeIntervalSince1970: 90_000))
         let repository = InMemoryFeedingSessionRepository()
         let store = StrategyRecordingRecoveryStore()
@@ -123,12 +123,50 @@ final class ActiveSessionRecoveryTests: XCTestCase {
         XCTAssertEqual(store.recordedStrategies.first, .fallbackAllowed)
 
         store.nextLoadResult = nil
-        viewModel.reloadFromRecoveryStore(source: "test.external_sync")
+        await viewModel.reloadFromRecoveryStore(source: "test.external_sync")
 
         XCTAssertEqual(store.recordedStrategies.last, .primaryStoreAuthoritativeWhenMissing)
         XCTAssertEqual(store.clearCallCount, 1)
         XCTAssertEqual(viewModel.displayState.state, .idle)
         XCTAssertEqual(viewModel.displayState.totalElapsed, 0, accuracy: 0.001)
+    }
+
+    func testExternalResetCancelsQueuedActivePersistBeforeItCanRewriteCompletedSession() async throws {
+        let clock = RecoveryTestClock(start: Date(timeIntervalSince1970: 91_000))
+        let repository = StatusDelayedUpsertRepository(activeDelayNanoseconds: 300_000_000)
+        let store = InMemoryActiveSessionRecoveryStore()
+        let engine = SessionTimerEngine(now: { clock.now })
+        let viewModel = ActiveSessionViewModel(
+            engine: engine,
+            repository: repository,
+            recoveryStore: store
+        )
+
+        try viewModel.start(side: .left)
+        let snapshot = engine.snapshot()
+        let sessionID = try XCTUnwrap(snapshot.sessionID)
+        let startedAt = try XCTUnwrap(snapshot.startedAt)
+
+        let completed = try FeedingSession(
+            id: sessionID,
+            startedAt: startedAt,
+            endedAt: clock.now.addingTimeInterval(9),
+            leftDuration: 9,
+            rightDuration: 0,
+            note: "widget completed",
+            status: .completed
+        )
+        try await repository.upsert(completed)
+        try store.clear()
+
+        await viewModel.reloadFromRecoveryStore(source: "test.external_sync.widget_end")
+        try await Task.sleep(nanoseconds: 400_000_000)
+
+        let persisted = try await repository.fetch(id: sessionID)
+        let final = try XCTUnwrap(persisted)
+        XCTAssertEqual(final.status, .completed)
+        XCTAssertEqual(final.note, "widget completed")
+        XCTAssertEqual(viewModel.displayState.state, .idle)
     }
 }
 
@@ -165,6 +203,35 @@ private final class StrategyRecordingRecoveryStore: ActiveSessionRecoveryStoring
     func clear() throws {
         clearCallCount += 1
         nextLoadResult = nil
+    }
+}
+
+private actor StatusDelayedUpsertRepository: FeedingSessionRepository {
+    private var sessions: [UUID: FeedingSession] = [:]
+    private let activeDelayNanoseconds: UInt64
+
+    init(activeDelayNanoseconds: UInt64) {
+        self.activeDelayNanoseconds = activeDelayNanoseconds
+    }
+
+    func fetchAll() async throws -> [FeedingSession] {
+        sessions.values.sorted { ($0.endedAt ?? $0.startedAt) > ($1.endedAt ?? $1.startedAt) }
+    }
+
+    func fetch(id: UUID) async throws -> FeedingSession? {
+        sessions[id]
+    }
+
+    func upsert(_ session: FeedingSession) async throws {
+        if session.status != .completed {
+            try await Task.sleep(nanoseconds: activeDelayNanoseconds)
+        }
+
+        sessions[session.id] = session
+    }
+
+    func remove(id: UUID) async throws {
+        sessions.removeValue(forKey: id)
     }
 }
 
