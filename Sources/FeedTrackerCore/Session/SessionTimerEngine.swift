@@ -88,12 +88,19 @@ public struct SessionTimerRecoveryState: Codable, Equatable, Sendable {
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.sessionID = try container.decodeIfPresent(UUID.self, forKey: .sessionID) ?? UUID()
         self.status = try container.decode(SessionTimerRecoveryStatus.self, forKey: .status)
         self.startedAt = try container.decode(Date.self, forKey: .startedAt)
         self.runningSince = try container.decodeIfPresent(Date.self, forKey: .runningSince)
         self.leftAccumulated = try container.decode(TimeInterval.self, forKey: .leftAccumulated)
         self.rightAccumulated = try container.decode(TimeInterval.self, forKey: .rightAccumulated)
+        self.sessionID = try container.decodeIfPresent(UUID.self, forKey: .sessionID)
+            ?? Self.legacyDeterministicSessionID(
+                status: status,
+                startedAt: startedAt,
+                runningSince: runningSince,
+                leftAccumulated: leftAccumulated,
+                rightAccumulated: rightAccumulated
+            )
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -104,6 +111,50 @@ public struct SessionTimerRecoveryState: Codable, Equatable, Sendable {
         try container.encodeIfPresent(runningSince, forKey: .runningSince)
         try container.encode(leftAccumulated, forKey: .leftAccumulated)
         try container.encode(rightAccumulated, forKey: .rightAccumulated)
+    }
+
+    private static func legacyDeterministicSessionID(
+        status: SessionTimerRecoveryStatus,
+        startedAt: Date,
+        runningSince: Date?,
+        leftAccumulated: TimeInterval,
+        rightAccumulated: TimeInterval
+    ) -> UUID {
+        let payload = [
+            status.rawValue,
+            startedAt.ISO8601Format(),
+            runningSince?.ISO8601Format() ?? "nil",
+            String(leftAccumulated.bitPattern),
+            String(rightAccumulated.bitPattern)
+        ].joined(separator: "|")
+
+        let first = fnv1a64(payload.utf8)
+        let second = fnv1a64((payload + "|feedtracker.legacy").utf8)
+        var bytes = [UInt8](repeating: 0, count: 16)
+
+        for index in 0..<8 {
+            bytes[index] = UInt8((first >> UInt64((7 - index) * 8)) & 0xFF)
+            bytes[8 + index] = UInt8((second >> UInt64((7 - index) * 8)) & 0xFF)
+        }
+
+        bytes[6] = (bytes[6] & 0x0F) | 0x50
+        bytes[8] = (bytes[8] & 0x3F) | 0x80
+
+        return UUID(uuid: (
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[8], bytes[9], bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15]
+        ))
+    }
+
+    private static func fnv1a64<C: Collection>(_ bytes: C) -> UInt64 where C.Element == UInt8 {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in bytes {
+            hash ^= UInt64(byte)
+            hash &*= 0x100000001b3
+        }
+        return hash
     }
 }
 

@@ -140,11 +140,12 @@ final class SessionTimerEngineTests: XCTestCase {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let recoveryState = try decoder.decode(SessionTimerRecoveryState.self, from: legacyPayload)
+        let decodedAgain = try decoder.decode(SessionTimerRecoveryState.self, from: legacyPayload)
 
         XCTAssertEqual(recoveryState.status, .runningLeft)
         XCTAssertEqual(recoveryState.leftAccumulated, 12, accuracy: 0.001)
         XCTAssertEqual(recoveryState.rightAccumulated, 3, accuracy: 0.001)
-        XCTAssertNotEqual(recoveryState.sessionID, UUID(uuidString: "00000000-0000-0000-0000-000000000000"))
+        XCTAssertEqual(recoveryState.sessionID, decodedAgain.sessionID)
     }
 }
 

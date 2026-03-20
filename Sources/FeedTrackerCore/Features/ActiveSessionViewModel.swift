@@ -64,7 +64,9 @@ public final class ActiveSessionViewModel: ObservableObject {
         displayState = displayState(for: engine.snapshot(at: date))
     }
 
-    public func reloadFromRecoveryStore(source: String) {
+    public func reloadFromRecoveryStore(source: String) async {
+        await drainPendingSessionPersistTask(cancel: true)
+
         guard let recoveryStore else {
             refresh()
             syncLiveActivity(source: source)
@@ -229,7 +231,7 @@ public final class ActiveSessionViewModel: ObservableObject {
     public func endSession(note: String? = nil) async throws -> FeedingSession {
         do {
             let session = try engine.endSession(note: note)
-            await pendingSessionPersistTask?.value
+            await drainPendingSessionPersistTask()
             try await repository.upsert(session)
             refresh()
             persistRecoveryState(context: "session.end")
@@ -345,6 +347,10 @@ public final class ActiveSessionViewModel: ObservableObject {
         pendingSessionPersistTask = Task {
             await previousTask?.value
 
+            guard Task.isCancelled == false else {
+                return
+            }
+
             do {
                 try await repository.upsert(session)
                 diagnostics?.record(
@@ -358,6 +364,10 @@ public final class ActiveSessionViewModel: ObservableObject {
                     source: "active_session_vm"
                 )
             } catch {
+                guard Task.isCancelled == false else {
+                    return
+                }
+
                 diagnostics?.recordError(
                     context: "persistence.persist_active_session",
                     message: error.localizedDescription,
@@ -369,6 +379,15 @@ public final class ActiveSessionViewModel: ObservableObject {
                 )
             }
         }
+    }
+
+    private func drainPendingSessionPersistTask(cancel: Bool = false) async {
+        let task = pendingSessionPersistTask
+        if cancel {
+            pendingSessionPersistTask = nil
+            task?.cancel()
+        }
+        await task?.value
     }
 
     private func displayState(for snapshot: SessionTimerSnapshot) -> ActiveSessionDisplayState {
