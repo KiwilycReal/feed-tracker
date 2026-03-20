@@ -37,6 +37,8 @@ public final class ActiveSessionViewModel: ObservableObject {
     private let recoveryStore: (any ActiveSessionRecoveryStoring)?
     private let liveActivityCoordinator: (any LiveActivityLifecycleCoordinating)?
 
+    private var pendingSessionPersistTask: Task<Void, Never>?
+
     @Published public private(set) var displayState: ActiveSessionDisplayState
 
     public init(
@@ -227,6 +229,7 @@ public final class ActiveSessionViewModel: ObservableObject {
     public func endSession(note: String? = nil) async throws -> FeedingSession {
         do {
             let session = try engine.endSession(note: note)
+            await pendingSessionPersistTask?.value
             try await repository.upsert(session)
             refresh()
             persistRecoveryState(context: "session.end")
@@ -338,7 +341,10 @@ public final class ActiveSessionViewModel: ObservableObject {
             return
         }
 
-        Task {
+        let previousTask = pendingSessionPersistTask
+        pendingSessionPersistTask = Task {
+            await previousTask?.value
+
             do {
                 try await repository.upsert(session)
                 diagnostics?.record(

@@ -57,8 +57,10 @@ public final class LiveActivityQuickActionHandler {
         do {
             switch action {
             case .switchSide:
-                try handleSwitchSide()
-                try await persistCurrentSessionState(action: action)
+                let didMutate = try handleSwitchSide()
+                if didMutate {
+                    try await persistCurrentSessionState(action: action)
+                }
                 diagnostics?.record(
                     category: "live_activity",
                     action: "switch_side",
@@ -68,8 +70,10 @@ public final class LiveActivityQuickActionHandler {
                 return nil
 
             case .pauseSession:
-                try handlePause()
-                try await persistCurrentSessionState(action: action)
+                let didMutate = try handlePause()
+                if didMutate {
+                    try await persistCurrentSessionState(action: action)
+                }
                 diagnostics?.record(
                     category: "live_activity",
                     action: "pause_session",
@@ -136,19 +140,22 @@ public final class LiveActivityQuickActionHandler {
         LiveActivityState(snapshot: engine.snapshot(at: date))
     }
 
-    private func handleSwitchSide() throws {
+    private func handleSwitchSide() throws -> Bool {
         let state = engine.snapshot().state
 
         switch state {
         case .running(let active):
             try engine.switch(to: active == .left ? .right : .left)
+            return true
 
         case .paused(let paused):
             try engine.resume()
             try engine.switch(to: paused == .left ? .right : .left)
+            return true
 
         case .stopped:
             try engine.start(.left)
+            return true
 
         case .idle:
             throw LiveActivityQuickActionError.cannotSwitchWithoutStartedSession
@@ -160,19 +167,21 @@ public final class LiveActivityQuickActionHandler {
                 metadata: [:],
                 source: "live_activity_handler"
             )
-            return
+            return false
         }
     }
 
-    private func handlePause() throws {
+    private func handlePause() throws -> Bool {
         let state = engine.snapshot().state
 
         switch state {
         case .running:
             try engine.pause()
+            return true
 
         case .paused:
             try engine.resume()
+            return true
 
         case .idle, .stopped, .ended:
             diagnostics?.record(
@@ -181,7 +190,7 @@ public final class LiveActivityQuickActionHandler {
                 metadata: ["state": stateLabel(state)],
                 source: "live_activity_handler"
             )
-            return
+            return false
         }
     }
 

@@ -117,6 +117,27 @@ final class LiveActivityQuickActionHandlerTests: XCTestCase {
         XCTAssertEqual(all.count, 1)
     }
 
+    func testIgnoredTerminalSwitchAndPauseDoNotRewriteCompletedNote() async throws {
+        let clock = QuickActionTestClock(start: Date(timeIntervalSince1970: 80_500))
+        let engine = SessionTimerEngine(now: { clock.now })
+        let repository = InMemoryFeedingSessionRepository()
+        let handler = LiveActivityQuickActionHandler(engine: engine, repository: repository)
+
+        try await handler.handle(.startLeft)
+        clock.advance(seconds: 11)
+        let ended = try await handler.handle(.terminateSession, note: "preserve me")
+        let session = try XCTUnwrap(ended)
+
+        try await handler.handle(.pauseSession)
+        try await handler.handle(.switchSide)
+
+        let persisted = try await repository.fetch(id: session.id)
+        let completed = try XCTUnwrap(persisted)
+        XCTAssertEqual(completed.status, .completed)
+        XCTAssertEqual(completed.note, "preserve me")
+        XCTAssertEqual(completed.totalDuration, 11, accuracy: 0.001)
+    }
+
     func testSwitchSideThrowsWhenSessionNotStarted() async {
         let clock = QuickActionTestClock(start: Date(timeIntervalSince1970: 81_000))
         let engine = SessionTimerEngine(now: { clock.now })

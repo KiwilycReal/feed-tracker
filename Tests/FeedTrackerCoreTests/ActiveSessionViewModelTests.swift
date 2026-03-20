@@ -79,6 +79,25 @@ final class ActiveSessionViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.displayState.state, .idle)
         XCTAssertEqual(viewModel.displayState.totalElapsed, 0, accuracy: 0.001)
     }
+
+    func testEndSessionWaitsForQueuedActivePersistAndKeepsCompletedRecordAuthoritative() async throws {
+        let clock = ViewModelTestClock(start: Date(timeIntervalSince1970: 22_000))
+        let engine = SessionTimerEngine(now: { clock.now })
+        let repository = StatusDelayedUpsertRepository(activeDelayNanoseconds: 300_000_000)
+        let viewModel = ActiveSessionViewModel(engine: engine, repository: repository)
+
+        try viewModel.start(side: .left)
+        clock.advance(seconds: 14)
+
+        let session = try await viewModel.endSession(note: "keep final note")
+        try await Task.sleep(nanoseconds: 400_000_000)
+
+        let persisted = try await repository.fetch(id: session.id)
+        let completed = try XCTUnwrap(persisted)
+        XCTAssertEqual(completed.status, .completed)
+        XCTAssertEqual(completed.totalDuration, 14, accuracy: 0.001)
+        XCTAssertEqual(completed.note, "keep final note")
+    }
 }
 
 private final class ViewModelTestClock {
@@ -90,6 +109,35 @@ private final class ViewModelTestClock {
 
     func advance(seconds: TimeInterval) {
         now = now.addingTimeInterval(seconds)
+    }
+}
+
+private actor StatusDelayedUpsertRepository: FeedingSessionRepository {
+    private var sessions: [UUID: FeedingSession] = [:]
+    private let activeDelayNanoseconds: UInt64
+
+    init(activeDelayNanoseconds: UInt64) {
+        self.activeDelayNanoseconds = activeDelayNanoseconds
+    }
+
+    func fetchAll() async throws -> [FeedingSession] {
+        sessions.values.sorted { ($0.endedAt ?? $0.startedAt) > ($1.endedAt ?? $1.startedAt) }
+    }
+
+    func fetch(id: UUID) async throws -> FeedingSession? {
+        sessions[id]
+    }
+
+    func upsert(_ session: FeedingSession) async throws {
+        if session.status != .completed {
+            try await Task.sleep(nanoseconds: activeDelayNanoseconds)
+        }
+
+        sessions[session.id] = session
+    }
+
+    func remove(id: UUID) async throws {
+        sessions.removeValue(forKey: id)
     }
 }
 

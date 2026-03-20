@@ -61,6 +61,15 @@ public struct SessionTimerRecoveryState: Codable, Equatable, Sendable {
     public let leftAccumulated: TimeInterval
     public let rightAccumulated: TimeInterval
 
+    private enum CodingKeys: String, CodingKey {
+        case sessionID
+        case status
+        case startedAt
+        case runningSince
+        case leftAccumulated
+        case rightAccumulated
+    }
+
     public init(
         sessionID: UUID = UUID(),
         status: SessionTimerRecoveryStatus,
@@ -75,6 +84,26 @@ public struct SessionTimerRecoveryState: Codable, Equatable, Sendable {
         self.runningSince = runningSince
         self.leftAccumulated = leftAccumulated
         self.rightAccumulated = rightAccumulated
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.sessionID = try container.decodeIfPresent(UUID.self, forKey: .sessionID) ?? UUID()
+        self.status = try container.decode(SessionTimerRecoveryStatus.self, forKey: .status)
+        self.startedAt = try container.decode(Date.self, forKey: .startedAt)
+        self.runningSince = try container.decodeIfPresent(Date.self, forKey: .runningSince)
+        self.leftAccumulated = try container.decode(TimeInterval.self, forKey: .leftAccumulated)
+        self.rightAccumulated = try container.decode(TimeInterval.self, forKey: .rightAccumulated)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(sessionID, forKey: .sessionID)
+        try container.encode(status, forKey: .status)
+        try container.encode(startedAt, forKey: .startedAt)
+        try container.encodeIfPresent(runningSince, forKey: .runningSince)
+        try container.encode(leftAccumulated, forKey: .leftAccumulated)
+        try container.encode(rightAccumulated, forKey: .rightAccumulated)
     }
 }
 
