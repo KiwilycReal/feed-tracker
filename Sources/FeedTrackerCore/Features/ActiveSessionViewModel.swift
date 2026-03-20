@@ -72,6 +72,7 @@ public final class ActiveSessionViewModel: ObservableObject {
         do {
             if let recoveryState = try recoveryStore.load(strategy: .primaryStoreAuthoritativeWhenMissing) {
                 try engine.restore(from: recoveryState)
+                persistActiveSessionRecord(snapshot: engine.snapshot(), context: source)
                 diagnostics?.record(
                     category: "session_recovery",
                     action: "reload_external_sync",
@@ -262,6 +263,7 @@ public final class ActiveSessionViewModel: ObservableObject {
             }
 
             try engine.restore(from: recoveryState)
+            persistActiveSessionRecord(snapshot: engine.snapshot(), context: "session.restore")
             diagnostics?.record(
                 category: "session_recovery",
                 action: "restore_success",
@@ -290,21 +292,30 @@ public final class ActiveSessionViewModel: ObservableObject {
     }
 
     private func persistRecoveryState(context: String) {
+        let snapshot = engine.snapshot()
+        let recoveryState = engine.recoveryStateForPersistence()
+
+        if recoveryState != nil {
+            persistActiveSessionRecord(snapshot: snapshot, context: context)
+        }
+
         guard let recoveryStore else {
             return
         }
 
         do {
-            if let state = engine.recoveryStateForPersistence() {
-                try recoveryStore.save(state)
+            if let recoveryState {
+                try recoveryStore.save(recoveryState)
+                _ = FeedTrackerSharedStorage.writeExternalSyncMarker()
                 diagnostics?.record(
                     category: "session_recovery",
                     action: "persist",
-                    metadata: ["status": state.status.rawValue],
+                    metadata: ["status": recoveryState.status.rawValue],
                     source: "active_session_vm"
                 )
             } else {
                 try recoveryStore.clear()
+                _ = FeedTrackerSharedStorage.writeExternalSyncMarker()
                 diagnostics?.record(
                     category: "session_recovery",
                     action: "clear",
@@ -319,6 +330,38 @@ public final class ActiveSessionViewModel: ObservableObject {
                 metadata: ["eventContext": context],
                 source: "active_session_vm"
             )
+        }
+    }
+
+    private func persistActiveSessionRecord(snapshot: SessionTimerSnapshot, context: String) {
+        guard let session = try? snapshot.persistedSession() else {
+            return
+        }
+
+        Task {
+            do {
+                try await repository.upsert(session)
+                diagnostics?.record(
+                    category: "persistence",
+                    action: "persist_active_session",
+                    metadata: [
+                        "context": context,
+                        "sessionID": session.id.uuidString,
+                        "status": session.status.rawValue
+                    ],
+                    source: "active_session_vm"
+                )
+            } catch {
+                diagnostics?.recordError(
+                    context: "persistence.persist_active_session",
+                    message: error.localizedDescription,
+                    metadata: [
+                        "eventContext": context,
+                        "sessionID": session.id.uuidString
+                    ],
+                    source: "active_session_vm"
+                )
+            }
         }
     }
 

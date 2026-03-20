@@ -53,16 +53,46 @@ final class LiveActivityQuickActionHandlerTests: XCTestCase {
         let handler = LiveActivityQuickActionHandler(engine: engine, repository: repository)
 
         try await handler.handle(.startLeft)
+        let activeSessions = try await repository.fetchAll()
+        let activeSessionID = try XCTUnwrap(activeSessions.first?.id)
         clock.advance(seconds: 18)
 
         let ended = try await handler.handle(.terminateSession, note: "ended from live activity")
         let session = try XCTUnwrap(ended)
         let persisted = try await repository.fetch(id: session.id)
 
+        XCTAssertEqual(session.id, activeSessionID)
         XCTAssertEqual(session.status, .completed)
         XCTAssertEqual(session.totalDuration, 18, accuracy: 0.001)
         XCTAssertEqual(session.note, "ended from live activity")
         XCTAssertEqual(persisted?.id, session.id)
+    }
+
+    func testSwitchAndPausePersistAuthoritativeActiveSessionState() async throws {
+        let clock = QuickActionTestClock(start: Date(timeIntervalSince1970: 60_000))
+        let engine = SessionTimerEngine(now: { clock.now })
+        let repository = InMemoryFeedingSessionRepository()
+        let handler = LiveActivityQuickActionHandler(engine: engine, repository: repository)
+
+        try await handler.handle(.startLeft)
+        let startedSessions = try await repository.fetchAll()
+        let started = try XCTUnwrap(startedSessions.first)
+        XCTAssertEqual(started.status, .active)
+
+        clock.advance(seconds: 12)
+        try await handler.handle(.switchSide)
+        let switchedRecord = try await repository.fetch(id: started.id)
+        let switched = try XCTUnwrap(switchedRecord)
+        XCTAssertEqual(switched.status, .active)
+        XCTAssertEqual(switched.leftDuration, 12, accuracy: 0.001)
+
+        clock.advance(seconds: 7)
+        try await handler.handle(.pauseSession)
+        let pausedRecord = try await repository.fetch(id: started.id)
+        let paused = try XCTUnwrap(pausedRecord)
+        XCTAssertEqual(paused.status, .paused)
+        XCTAssertEqual(paused.leftDuration, 12, accuracy: 0.001)
+        XCTAssertEqual(paused.rightDuration, 7, accuracy: 0.001)
     }
 
     func testTerminateIsIdempotentAfterEndedAndDoesNotMutateState() async throws {

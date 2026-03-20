@@ -15,6 +15,7 @@ public enum SessionTimerEngineError: Error, Equatable, Sendable {
 }
 
 public struct SessionTimerSnapshot: Equatable, Sendable {
+    public let sessionID: UUID?
     public let state: SessionTimerState
     public let activeSide: FeedingSide?
     public let leftElapsed: TimeInterval
@@ -22,6 +23,26 @@ public struct SessionTimerSnapshot: Equatable, Sendable {
     public let totalElapsed: TimeInterval
     public let startedAt: Date?
     public let endedAt: Date?
+
+    public init(
+        sessionID: UUID? = nil,
+        state: SessionTimerState,
+        activeSide: FeedingSide?,
+        leftElapsed: TimeInterval,
+        rightElapsed: TimeInterval,
+        totalElapsed: TimeInterval,
+        startedAt: Date?,
+        endedAt: Date?
+    ) {
+        self.sessionID = sessionID
+        self.state = state
+        self.activeSide = activeSide
+        self.leftElapsed = leftElapsed
+        self.rightElapsed = rightElapsed
+        self.totalElapsed = totalElapsed
+        self.startedAt = startedAt
+        self.endedAt = endedAt
+    }
 }
 
 public enum SessionTimerRecoveryStatus: String, Codable, Equatable, Sendable {
@@ -33,6 +54,7 @@ public enum SessionTimerRecoveryStatus: String, Codable, Equatable, Sendable {
 }
 
 public struct SessionTimerRecoveryState: Codable, Equatable, Sendable {
+    public let sessionID: UUID
     public let status: SessionTimerRecoveryStatus
     public let startedAt: Date
     public let runningSince: Date?
@@ -40,12 +62,14 @@ public struct SessionTimerRecoveryState: Codable, Equatable, Sendable {
     public let rightAccumulated: TimeInterval
 
     public init(
+        sessionID: UUID = UUID(),
         status: SessionTimerRecoveryStatus,
         startedAt: Date,
         runningSince: Date?,
         leftAccumulated: TimeInterval,
         rightAccumulated: TimeInterval
     ) {
+        self.sessionID = sessionID
         self.status = status
         self.startedAt = startedAt
         self.runningSince = runningSince
@@ -57,6 +81,7 @@ public struct SessionTimerRecoveryState: Codable, Equatable, Sendable {
 public final class SessionTimerEngine {
     private let now: @Sendable () -> Date
 
+    private var sessionID: UUID?
     private var state: SessionTimerState = .idle
     private var startedAt: Date?
     private var endedAt: Date?
@@ -74,6 +99,7 @@ public final class SessionTimerEngine {
 
         switch state {
         case .idle, .ended:
+            sessionID = UUID()
             startedAt = current
             endedAt = nil
             leftAccumulated = 0
@@ -168,6 +194,7 @@ public final class SessionTimerEngine {
         state = .ended
 
         return try FeedingSession(
+            id: sessionID ?? UUID(),
             startedAt: startedAt ?? current,
             endedAt: endedAt,
             leftDuration: leftAccumulated,
@@ -178,7 +205,7 @@ public final class SessionTimerEngine {
     }
 
     public func recoveryStateForPersistence() -> SessionTimerRecoveryState? {
-        guard let startedAt else {
+        guard let startedAt, let sessionID else {
             return nil
         }
 
@@ -189,6 +216,7 @@ public final class SessionTimerEngine {
         case .running(let side):
             let status: SessionTimerRecoveryStatus = side == .left ? .runningLeft : .runningRight
             return SessionTimerRecoveryState(
+                sessionID: sessionID,
                 status: status,
                 startedAt: startedAt,
                 runningSince: runningSince,
@@ -199,6 +227,7 @@ public final class SessionTimerEngine {
         case .paused(let side):
             let status: SessionTimerRecoveryStatus = side == .left ? .pausedLeft : .pausedRight
             return SessionTimerRecoveryState(
+                sessionID: sessionID,
                 status: status,
                 startedAt: startedAt,
                 runningSince: nil,
@@ -208,6 +237,7 @@ public final class SessionTimerEngine {
 
         case .stopped:
             return SessionTimerRecoveryState(
+                sessionID: sessionID,
                 status: .stopped,
                 startedAt: startedAt,
                 runningSince: nil,
@@ -218,6 +248,7 @@ public final class SessionTimerEngine {
     }
 
     public func reset() {
+        sessionID = nil
         state = .idle
         startedAt = nil
         endedAt = nil
@@ -232,6 +263,7 @@ public final class SessionTimerEngine {
             throw SessionTimerEngineError.invalidRecoveryState
         }
 
+        self.sessionID = recoveryState.sessionID
         self.startedAt = recoveryState.startedAt
         self.endedAt = nil
         self.leftAccumulated = recoveryState.leftAccumulated
@@ -281,6 +313,7 @@ public final class SessionTimerEngine {
         }
 
         return SessionTimerSnapshot(
+            sessionID: sessionID,
             state: state,
             activeSide: activeSide(for: state),
             leftElapsed: leftElapsed,

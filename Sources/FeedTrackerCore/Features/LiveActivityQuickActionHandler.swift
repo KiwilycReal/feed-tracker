@@ -58,6 +58,7 @@ public final class LiveActivityQuickActionHandler {
             switch action {
             case .switchSide:
                 try handleSwitchSide()
+                try await persistCurrentSessionState(action: action)
                 diagnostics?.record(
                     category: "live_activity",
                     action: "switch_side",
@@ -68,6 +69,7 @@ public final class LiveActivityQuickActionHandler {
 
             case .pauseSession:
                 try handlePause()
+                try await persistCurrentSessionState(action: action)
                 diagnostics?.record(
                     category: "live_activity",
                     action: "pause_session",
@@ -81,6 +83,7 @@ public final class LiveActivityQuickActionHandler {
 
             case .startLeft:
                 try startOrSwitch(to: .left)
+                try await persistCurrentSessionState(action: action)
                 diagnostics?.record(
                     category: "live_activity",
                     action: "start_left",
@@ -91,6 +94,7 @@ public final class LiveActivityQuickActionHandler {
 
             case .startRight:
                 try startOrSwitch(to: .right)
+                try await persistCurrentSessionState(action: action)
                 diagnostics?.record(
                     category: "live_activity",
                     action: "start_right",
@@ -224,6 +228,25 @@ public final class LiveActivityQuickActionHandler {
         case .ended:
             throw LiveActivityQuickActionError.cannotStartAfterSessionEnded
         }
+    }
+
+    private func persistCurrentSessionState(action: LiveActivityQuickAction) async throws {
+        let snapshot = engine.snapshot()
+        guard let session = try snapshot.persistedSession() else {
+            return
+        }
+
+        try await repository.upsert(session)
+        diagnostics?.record(
+            category: "persistence",
+            action: "persist_active_session",
+            metadata: [
+                "action": action.rawValue,
+                "sessionID": session.id.uuidString,
+                "status": session.status.rawValue
+            ],
+            source: "live_activity_handler"
+        )
     }
 
     private func stateLabel(_ state: SessionTimerState) -> String {

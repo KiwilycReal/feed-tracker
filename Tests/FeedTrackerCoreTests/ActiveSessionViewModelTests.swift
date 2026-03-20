@@ -29,15 +29,33 @@ final class ActiveSessionViewModelTests: XCTestCase {
         let viewModel = ActiveSessionViewModel(engine: engine, repository: repository)
 
         try viewModel.start(side: .left)
+        let activeSessions = try await waitForSessions(in: repository, count: 1)
+        let activeSessionID = try XCTUnwrap(activeSessions.first?.id)
         clock.advance(seconds: 45)
 
         let session = try await viewModel.endSession(note: "saved by view model")
         let persistedOptional = try await repository.fetch(id: session.id)
         let persisted = try XCTUnwrap(persistedOptional)
 
+        XCTAssertEqual(session.id, activeSessionID)
         XCTAssertEqual(session.totalDuration, 45, accuracy: 0.001)
         XCTAssertEqual(persisted.totalDuration, 45, accuracy: 0.001)
         XCTAssertEqual(persisted.note, "saved by view model")
+    }
+
+    func testStartPersistsRecoverableActiveSessionRecord() async throws {
+        let clock = ViewModelTestClock(start: Date(timeIntervalSince1970: 19_000))
+        let engine = SessionTimerEngine(now: { clock.now })
+        let repository = InMemoryFeedingSessionRepository()
+        let viewModel = ActiveSessionViewModel(engine: engine, repository: repository)
+
+        try viewModel.start(side: .right)
+
+        let activeSessions = try await waitForSessions(in: repository, count: 1)
+        let active = try XCTUnwrap(activeSessions.first)
+        XCTAssertEqual(active.status, .active)
+        XCTAssertEqual(active.leftDuration, 0, accuracy: 0.001)
+        XCTAssertEqual(active.rightDuration, 0, accuracy: 0.001)
     }
 
     func testDisplayResetsToZeroAfterEndingSession() async throws {
@@ -73,4 +91,27 @@ private final class ViewModelTestClock {
     func advance(seconds: TimeInterval) {
         now = now.addingTimeInterval(seconds)
     }
+}
+
+private func waitForSessions(
+    in repository: InMemoryFeedingSessionRepository,
+    count: Int,
+    timeoutNanoseconds: UInt64 = 1_000_000_000,
+    pollNanoseconds: UInt64 = 10_000_000,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) async throws -> [FeedingSession] {
+    let deadline = ContinuousClock.now + .nanoseconds(Int(timeoutNanoseconds))
+
+    while ContinuousClock.now < deadline {
+        let sessions = try await repository.fetchAll()
+        if sessions.count >= count {
+            return sessions
+        }
+        try await Task.sleep(nanoseconds: pollNanoseconds)
+    }
+
+    let sessions = try await repository.fetchAll()
+    XCTFail("Timed out waiting for \(count) persisted session(s)", file: file, line: line)
+    return sessions
 }
