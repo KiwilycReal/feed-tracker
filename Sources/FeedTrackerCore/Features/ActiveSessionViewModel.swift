@@ -390,7 +390,10 @@ public final class ActiveSessionViewModel: ObservableObject {
         await task?.value
     }
 
-    private func displayState(for snapshot: SessionTimerSnapshot) -> ActiveSessionDisplayState {
+}
+
+private extension ActiveSessionViewModel {
+    func displayState(for snapshot: SessionTimerSnapshot) -> ActiveSessionDisplayState {
         if case .ended = snapshot.state {
             return .idle
         }
@@ -398,11 +401,11 @@ public final class ActiveSessionViewModel: ObservableObject {
         return ActiveSessionDisplayState(snapshot: snapshot)
     }
 
-    private func syncLiveActivity(source: String) {
+    func syncLiveActivity(source: String) {
         liveActivityCoordinator?.reconcile(snapshot: engine.snapshot(), source: source)
     }
 
-    private func sessionStateLabel(_ state: SessionTimerState) -> String {
+    func sessionStateLabel(_ state: SessionTimerState) -> String {
         switch state {
         case .idle:
             return "idle"
