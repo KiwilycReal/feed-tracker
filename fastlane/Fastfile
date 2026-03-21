@@ -125,6 +125,19 @@ def next_release_build_number(project_path)
   [timestamp_candidate, project_candidate].max.to_s
 end
 
+def write_project_build_number!(project_path, build_number)
+  pbxproj_path = File.join(project_path, "project.pbxproj")
+  UI.user_error!("Xcode project not found for build-number update: #{project_path}") unless File.exist?(pbxproj_path)
+
+  original = File.read(pbxproj_path)
+  unless original.match?(/CURRENT_PROJECT_VERSION = \d+;/)
+    UI.user_error!("CURRENT_PROJECT_VERSION not found in #{pbxproj_path}")
+  end
+
+  updated = original.gsub(/CURRENT_PROJECT_VERSION = \d+;/, "CURRENT_PROJECT_VERSION = #{build_number};")
+  File.write(pbxproj_path, updated)
+end
+
 platform :ios do
   desc "Readonly TestFlight release lane (single CI path)."
   lane :testflight_release do
@@ -237,10 +250,7 @@ platform :ios do
     build_options[:scheme] = scheme
 
     build_number = next_release_build_number(project)
-    increment_build_number(
-      build_number: build_number,
-      xcodeproj: project
-    )
+    write_project_build_number!(project, build_number)
     UI.message("Using CI release build number #{build_number}")
 
     build_app(build_options)
