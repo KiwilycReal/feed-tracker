@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(CoreFoundation)
+import CoreFoundation
+#endif
 
 public struct LiveActivityDisplayTarget: Codable, Equatable, Sendable {
     public let activityID: String
@@ -10,12 +13,45 @@ public struct LiveActivityDisplayTarget: Codable, Equatable, Sendable {
     }
 }
 
+public struct ExternalSyncContext: Codable, Equatable, Sendable {
+    public let marker: String
+    public let source: String
+    public let reason: String
+    public let action: String?
+    public let sessionID: String?
+    public let renderVersion: UInt64?
+    public let displayedRefreshAttempt: String?
+    public let timestamp: Date
+
+    public init(
+        marker: String,
+        source: String,
+        reason: String,
+        action: String? = nil,
+        sessionID: String? = nil,
+        renderVersion: UInt64? = nil,
+        displayedRefreshAttempt: String? = nil,
+        timestamp: Date = Date()
+    ) {
+        self.marker = marker
+        self.source = source
+        self.reason = reason
+        self.action = action
+        self.sessionID = sessionID
+        self.renderVersion = renderVersion
+        self.displayedRefreshAttempt = displayedRefreshAttempt
+        self.timestamp = timestamp
+    }
+}
+
 public enum FeedTrackerSharedStorage {
     public static let appGroupIdentifier = "group.com.kiwilyc.feedtracker"
     public static let directoryName = "FeedTracker"
     public static let recoveryKey = "feedtracker.active_session_recovery.v1"
     public static let syncMarkerKey = "feedtracker.external_sync_marker.v1"
+    public static let externalSyncContextKey = "feedtracker.external_sync_context.v1"
     public static let liveActivityDisplayTargetKey = "feedtracker.live_activity_display_target.v1"
+    public static let liveActivityExternalSyncNotificationName = "com.kiwilyc.feedtracker.live-activity-external-sync.v1"
     public static let liveActivityRenderVersionFileName = "live_activity_render_version.v1"
     public static let liveActivityRenderVersionLockFileName = "live_activity_render_version.lock"
     public static let liveActivityActionLockFileName = "live_activity_action.lock"
@@ -99,6 +135,63 @@ public enum FeedTrackerSharedStorage {
         userDefaults: UserDefaults? = FeedTrackerSharedStorage.sharedUserDefaults()
     ) -> String? {
         userDefaults?.string(forKey: syncMarkerKey)
+    }
+
+    @discardableResult
+    public static func writeExternalSyncContext(
+        marker: String,
+        source: String,
+        reason: String,
+        action: String? = nil,
+        sessionID: String? = nil,
+        renderVersion: UInt64? = nil,
+        displayedRefreshAttempt: String? = nil,
+        timestamp: Date = Date(),
+        userDefaults: UserDefaults? = FeedTrackerSharedStorage.sharedUserDefaults()
+    ) -> ExternalSyncContext {
+        let context = ExternalSyncContext(
+            marker: marker,
+            source: source,
+            reason: reason,
+            action: action,
+            sessionID: sessionID,
+            renderVersion: renderVersion,
+            displayedRefreshAttempt: displayedRefreshAttempt,
+            timestamp: timestamp
+        )
+
+        guard let userDefaults,
+              let data = try? JSONEncoder.feedTrackerSharedStorage.encode(context) else {
+            return context
+        }
+
+        userDefaults.set(data, forKey: externalSyncContextKey)
+        return context
+    }
+
+    public static func readExternalSyncContext(
+        userDefaults: UserDefaults? = FeedTrackerSharedStorage.sharedUserDefaults()
+    ) -> ExternalSyncContext? {
+        guard let userDefaults,
+              let data = userDefaults.data(forKey: externalSyncContextKey) else {
+            return nil
+        }
+
+        return try? JSONDecoder.feedTrackerSharedStorage.decode(ExternalSyncContext.self, from: data)
+    }
+
+    public static func clearExternalSyncContext(
+        userDefaults: UserDefaults? = FeedTrackerSharedStorage.sharedUserDefaults()
+    ) {
+        userDefaults?.removeObject(forKey: externalSyncContextKey)
+    }
+
+    public static func postLiveActivityExternalSyncSignal() {
+#if canImport(CoreFoundation)
+        let center = CFNotificationCenterGetDarwinNotifyCenter()
+        let notificationName = CFNotificationName(liveActivityExternalSyncNotificationName as CFString)
+        CFNotificationCenterPostNotification(center, notificationName, nil, nil, true)
+#endif
     }
 
     @discardableResult

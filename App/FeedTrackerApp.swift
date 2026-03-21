@@ -1,6 +1,47 @@
 import SwiftUI
 import FeedTrackerCore
+import CoreFoundation
 import Darwin
+
+final class LiveActivityExternalSyncObserver {
+    private let callback: @Sendable () -> Void
+    private let notificationName: String
+
+    init(
+        notificationName: String = FeedTrackerSharedStorage.liveActivityExternalSyncNotificationName,
+        callback: @escaping @Sendable () -> Void
+    ) {
+        self.callback = callback
+        self.notificationName = notificationName
+
+        CFNotificationCenterAddObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            Unmanaged.passUnretained(self).toOpaque(),
+            { _, observer, _, _, _ in
+                guard let observer else {
+                    return
+                }
+
+                let instance = Unmanaged<LiveActivityExternalSyncObserver>
+                    .fromOpaque(observer)
+                    .takeUnretainedValue()
+                instance.callback()
+            },
+            notificationName as CFString,
+            nil,
+            .deliverImmediately
+        )
+    }
+
+    deinit {
+        CFNotificationCenterRemoveObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            Unmanaged.passUnretained(self).toOpaque(),
+            CFNotificationName(notificationName as CFString),
+            nil
+        )
+    }
+}
 
 final class UserDefaultsActiveSessionRecoveryStore: ActiveSessionRecoveryStoring {
     private let userDefaultsStores: [UserDefaults]
@@ -91,6 +132,17 @@ final class FeedTrackerDependencies {
     let historyViewModel: HistoryListViewModel
     let diagnosticsExportViewModel: DiagnosticsExportViewModel
 
+    private lazy var liveActivityExternalSyncObserver: LiveActivityExternalSyncObserver = {
+        LiveActivityExternalSyncObserver { [weak self] in
+            Task { [weak self] in
+                guard let self else {
+                    return
+                }
+
+                await self.handleExternalSyncSignal(source: "app.darwin.live_activity_external_sync")
+            }
+        }
+    }()
     private var lastHandledExternalSyncMarker: String?
 
     init() {
@@ -131,6 +183,7 @@ final class FeedTrackerDependencies {
             sourceTag: "ios-app"
         )
         self.lastHandledExternalSyncMarker = nil
+        _ = liveActivityExternalSyncObserver
     }
 
     private static func makeLiveActivityController() -> any LiveActivityControlling {
@@ -202,6 +255,46 @@ final class FeedTrackerDependencies {
                 source: "ios-app"
             )
         }
+    }
+
+    private func handleExternalSyncSignal(source: String) async {
+        let syncMarker = FeedTrackerSharedStorage.readExternalSyncMarker()
+        let context = FeedTrackerSharedStorage.readExternalSyncContext()
+        var metadata: [String: String] = [
+            "source": source,
+            "marker": syncMarker ?? "missing"
+        ]
+
+        if let context {
+            metadata["contextMarker"] = context.marker
+            metadata["contextSource"] = context.source
+            metadata["reason"] = context.reason
+            if let action = context.action {
+                metadata["action"] = action
+            }
+            if let sessionID = context.sessionID {
+                metadata["sessionID"] = sessionID
+            }
+            if let renderVersion = context.renderVersion {
+                metadata["renderVersion"] = "\(renderVersion)"
+            }
+            if let displayedRefreshAttempt = context.displayedRefreshAttempt {
+                metadata["displayedRefreshAttempt"] = displayedRefreshAttempt
+            }
+            if let syncMarker, syncMarker != context.marker {
+                metadata["markerMismatch"] = "true"
+            }
+        }
+
+        diagnosticsLogger.record(
+            category: "live_activity_signal",
+            action: "received_external_sync_signal",
+            metadata: metadata,
+            source: "ios-app"
+        )
+
+        await reloadFromExternalSyncIfNeeded(source: "app.external_signal")
+        reconcileLiveActivity(source: "app.external_signal")
     }
 
     func handleAppLaunch() async {

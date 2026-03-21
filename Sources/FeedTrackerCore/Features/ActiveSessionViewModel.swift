@@ -311,7 +311,13 @@ public final class ActiveSessionViewModel: ObservableObject {
         do {
             if let recoveryState {
                 try recoveryStore.save(recoveryState)
-                _ = FeedTrackerSharedStorage.writeExternalSyncMarker()
+                let marker = FeedTrackerSharedStorage.writeExternalSyncMarker()
+                FeedTrackerSharedStorage.writeExternalSyncContext(
+                    marker: marker,
+                    source: "active_session_vm",
+                    reason: context,
+                    action: recoveryState.status.rawValue
+                )
                 diagnostics?.record(
                     category: "session_recovery",
                     action: "persist",
@@ -320,7 +326,13 @@ public final class ActiveSessionViewModel: ObservableObject {
                 )
             } else {
                 try recoveryStore.clear()
-                _ = FeedTrackerSharedStorage.writeExternalSyncMarker()
+                let marker = FeedTrackerSharedStorage.writeExternalSyncMarker()
+                FeedTrackerSharedStorage.writeExternalSyncContext(
+                    marker: marker,
+                    source: "active_session_vm",
+                    reason: context,
+                    action: "clear"
+                )
                 diagnostics?.record(
                     category: "session_recovery",
                     action: "clear",
