@@ -6,15 +6,19 @@ import Foundation
 @MainActor
 public final class ActivityKitLiveActivityController: LiveActivityControlling {
     private var activityID: String?
+    private var sessionID: String?
 
     public init() {}
 
-    public var isActive: Bool {
-        resolveActivity() != nil
+    public func isActive(sessionID: UUID) -> Bool {
+        resolveActivity(for: sessionID.uuidString) != nil
     }
 
     public func start(sessionID: UUID, state: FeedTrackerLiveActivityAttributes.ContentState) {
-        if let activity = resolveActivity() {
+        let requestedSessionID = sessionID.uuidString
+        self.sessionID = requestedSessionID
+
+        if let activity = resolveActivity(for: requestedSessionID) {
             enqueueUpdate(activity: activity, state: state)
             return
         }
@@ -22,7 +26,7 @@ public final class ActivityKitLiveActivityController: LiveActivityControlling {
         let attributes = FeedTrackerLiveActivityAttributes(sessionID: sessionID)
         let content = ActivityContent(state: state, staleDate: nil)
 
-        Task {
+        Task { [requestedSessionID] in
             guard shouldApplyRenderVersion(state.renderVersion) else {
                 return
             }
@@ -37,30 +41,39 @@ public final class ActivityKitLiveActivityController: LiveActivityControlling {
                     await activity.end(nil, dismissalPolicy: .immediate)
                     return
                 }
-                activityID = activity.id
+                await MainActor.run {
+                    storeResolvedActivity(activity, sessionID: requestedSessionID)
+                }
             } catch {
                 // best-effort lifecycle continuity; ignore request failure to avoid breaking primary flow
             }
         }
     }
 
-    public func update(state: FeedTrackerLiveActivityAttributes.ContentState) {
-        guard let activity = resolveActivity() else {
+    public func update(sessionID: UUID, state: FeedTrackerLiveActivityAttributes.ContentState) {
+        let requestedSessionID = sessionID.uuidString
+        self.sessionID = requestedSessionID
+
+        guard let activity = resolveActivity(for: requestedSessionID) else {
             return
         }
 
         enqueueUpdate(activity: activity, state: state)
     }
 
-    public func end(state: FeedTrackerLiveActivityAttributes.ContentState?) {
+    public func end(sessionID: UUID?, state: FeedTrackerLiveActivityAttributes.ContentState?) {
+        let requestedSessionID = sessionID?.uuidString
+            ?? self.sessionID
+            ?? FeedTrackerSharedStorage.readLiveActivityDisplayTarget()?.sessionID
         let renderVersion = state?.renderVersion ?? FeedTrackerSharedStorage.nextLiveActivityRenderVersion()
-        guard let activity = resolveActivity() else {
-            activityID = nil
+
+        guard let activity = resolveActivity(for: requestedSessionID) else {
+            clearResolvedActivity(sessionID: requestedSessionID)
             return
         }
 
         let content = state.map { ActivityContent(state: $0, staleDate: nil) }
-        Task {
+        Task { [requestedSessionID] in
             guard shouldApplyRenderVersion(renderVersion) else {
                 return
             }
@@ -69,7 +82,9 @@ public final class ActivityKitLiveActivityController: LiveActivityControlling {
             guard shouldApplyRenderVersion(renderVersion) else {
                 return
             }
-            activityID = nil
+            await MainActor.run {
+                clearResolvedActivity(sessionID: requestedSessionID)
+            }
         }
     }
 
@@ -91,18 +106,67 @@ public final class ActivityKitLiveActivityController: LiveActivityControlling {
         renderVersion == FeedTrackerSharedStorage.currentLiveActivityRenderVersion()
     }
 
-    private func resolveActivity() -> Activity<FeedTrackerLiveActivityAttributes>? {
-        if let activityID,
-           let activity = Activity<FeedTrackerLiveActivityAttributes>.activities.first(where: { $0.id == activityID }) {
+    private func resolveActivity(for requestedSessionID: String?) -> Activity<FeedTrackerLiveActivityAttributes>? {
+        let activities = Activity<FeedTrackerLiveActivityAttributes>.activities
+        guard let requestedSessionID else {
+            return nil
+        }
+
+        if let storedTarget = FeedTrackerSharedStorage.readLiveActivityDisplayTarget(),
+           storedTarget.sessionID == requestedSessionID,
+           let activity = activities.first(where: {
+               $0.id == storedTarget.activityID && $0.attributes.sessionID == requestedSessionID
+           }) {
+            storeResolvedActivity(activity, sessionID: requestedSessionID)
             return activity
         }
 
-        if let existing = Activity<FeedTrackerLiveActivityAttributes>.activities.first {
-            activityID = existing.id
-            return existing
+        if let activityID,
+           let activity = activities.first(where: {
+               $0.id == activityID && $0.attributes.sessionID == requestedSessionID
+           }) {
+            storeResolvedActivity(activity, sessionID: requestedSessionID)
+            return activity
+        }
+
+        if let activity = activities.first(where: { $0.attributes.sessionID == requestedSessionID }) {
+            storeResolvedActivity(activity, sessionID: requestedSessionID)
+            return activity
+        }
+
+        if FeedTrackerSharedStorage.readLiveActivityDisplayTarget()?.sessionID == requestedSessionID {
+            FeedTrackerSharedStorage.clearLiveActivityDisplayTarget()
+        }
+
+        if self.sessionID == requestedSessionID {
+            activityID = nil
         }
 
         return nil
+    }
+
+    private func storeResolvedActivity(
+        _ activity: Activity<FeedTrackerLiveActivityAttributes>,
+        sessionID: String
+    ) {
+        activityID = activity.id
+        self.sessionID = sessionID
+        FeedTrackerSharedStorage.writeLiveActivityDisplayTarget(
+            activityID: activity.id,
+            sessionID: sessionID
+        )
+    }
+
+    private func clearResolvedActivity(sessionID expectedSessionID: String?) {
+        if let expectedSessionID,
+           FeedTrackerSharedStorage.readLiveActivityDisplayTarget()?.sessionID == expectedSessionID {
+            FeedTrackerSharedStorage.clearLiveActivityDisplayTarget()
+        }
+
+        if expectedSessionID == nil || self.sessionID == expectedSessionID {
+            self.sessionID = nil
+        }
+        activityID = nil
     }
 }
 #endif
