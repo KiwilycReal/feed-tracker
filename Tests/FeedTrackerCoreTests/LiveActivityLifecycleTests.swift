@@ -8,9 +8,11 @@ final class LiveActivityLifecycleTests: XCTestCase {
         let clock = LiveActivityTestClock(start: Date(timeIntervalSince1970: 120_000))
         let engine = SessionTimerEngine(now: { clock.now })
         let controller = SpyLiveActivityController()
+        let renderVersion = RenderVersionCounter()
         let coordinator = LiveActivityLifecycleCoordinator(
             controller: controller,
-            now: { clock.now }
+            now: { clock.now },
+            nextRenderVersion: { renderVersion.next() }
         )
 
         try engine.start(.left)
@@ -18,6 +20,7 @@ final class LiveActivityLifecycleTests: XCTestCase {
         coordinator.reconcile(snapshot: engine.snapshot(), source: "foreground")
         XCTAssertEqual(controller.startCount, 1)
         XCTAssertEqual(controller.lastState?.timerStatusRawValue, LiveActivityTimerStatus.running.rawValue)
+        XCTAssertGreaterThan(controller.lastState?.renderVersion ?? 0, 0)
 
         clock.advance(seconds: 25)
         coordinator.reconcile(snapshot: engine.snapshot(), source: "background")
@@ -41,9 +44,11 @@ final class LiveActivityLifecycleTests: XCTestCase {
         let clock = LiveActivityTestClock(start: Date(timeIntervalSince1970: 130_000))
         let engine = SessionTimerEngine(now: { clock.now })
         let controller = SpyLiveActivityController()
+        let renderVersion = RenderVersionCounter()
         let coordinator = LiveActivityLifecycleCoordinator(
             controller: controller,
-            now: { clock.now }
+            now: { clock.now },
+            nextRenderVersion: { renderVersion.next() }
         )
 
         try engine.start(.right)
@@ -66,9 +71,11 @@ final class LiveActivityLifecycleTests: XCTestCase {
         let engine = SessionTimerEngine(now: { clock.now })
         let controller = SpyLiveActivityController()
         let diagnostics = DiagnosticsSpy()
+        let renderVersion = RenderVersionCounter()
         let coordinator = LiveActivityLifecycleCoordinator(
             controller: controller,
             now: { clock.now },
+            nextRenderVersion: { renderVersion.next() },
             diagnostics: diagnostics
         )
 
@@ -110,6 +117,27 @@ final class LiveActivityLifecycleTests: XCTestCase {
         let later = now.addingTimeInterval(30)
         XCTAssertEqual(state.projectedTotalElapsed(at: later), 95, accuracy: 0.001)
     }
+
+    func testContentStateDecodesLegacyPayloadWithoutRenderVersion() throws {
+        let payload = """
+        {
+          \"activeSideRawValue\": \"left\",
+          \"leftElapsed\": 55,
+          \"rightElapsed\": 10,
+          \"totalElapsed\": 65,
+          \"timerStatusRawValue\": \"running\",
+          \"capturedAt\": \"2026-03-21T01:00:00Z\"
+        }
+        """.data(using: .utf8)!
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let state = try decoder.decode(FeedTrackerLiveActivityContentState.self, from: payload)
+
+        XCTAssertEqual(state.activeSideRawValue, "left")
+        XCTAssertEqual(state.totalElapsed, 65, accuracy: 0.001)
+        XCTAssertEqual(state.renderVersion, 0)
+    }
 }
 
 @MainActor
@@ -134,15 +162,30 @@ private final class SpyLiveActivityController: LiveActivityControlling {
         lastState = state
     }
 
-    func end() {
+    func end(state: FeedTrackerLiveActivityAttributes.ContentState?) {
         isActive = false
         endCount += 1
+        if let state {
+            lastState = state
+        }
     }
 }
 
 private struct DiagnosticsRecord {
     let category: String
     let action: String
+}
+
+private final class RenderVersionCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: UInt64 = 0
+
+    func next() -> UInt64 {
+        lock.lock()
+        defer { lock.unlock() }
+        value &+= 1
+        return value
+    }
 }
 
 private final class DiagnosticsSpy: @unchecked Sendable, DiagnosticsLogging {
