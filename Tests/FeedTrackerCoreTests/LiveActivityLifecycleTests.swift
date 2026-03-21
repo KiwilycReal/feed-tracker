@@ -40,6 +40,34 @@ final class LiveActivityLifecycleTests: XCTestCase {
         XCTAssertEqual(projected, 100, accuracy: 0.001)
     }
 
+    func testCoordinatorUsesSnapshotSessionIdentifierWhenAvailable() {
+        let clock = LiveActivityTestClock(start: Date(timeIntervalSince1970: 121_000))
+        let controller = SpyLiveActivityController()
+        let renderVersion = RenderVersionCounter()
+        let coordinator = LiveActivityLifecycleCoordinator(
+            controller: controller,
+            now: { clock.now },
+            nextRenderVersion: { renderVersion.next() }
+        )
+
+        let expectedSessionID = UUID(uuidString: "00000000-0000-0000-0000-00000000HF51".replacingOccurrences(of: "HF51", with: "1351"))!
+        let snapshot = SessionTimerSnapshot(
+            sessionID: expectedSessionID,
+            state: .running(side: .left),
+            activeSide: .left,
+            leftElapsed: 22,
+            rightElapsed: 3,
+            totalElapsed: 25,
+            startedAt: clock.now.addingTimeInterval(-25),
+            endedAt: nil
+        )
+
+        coordinator.reconcile(snapshot: snapshot, source: "session-id-check")
+
+        XCTAssertEqual(controller.lastStartSessionID, expectedSessionID)
+        XCTAssertEqual(controller.lastObservedSessionID, expectedSessionID)
+    }
+
     func testEndingSessionEndsLiveActivityAndDoesNotRestoreAfterRelaunch() throws {
         let clock = LiveActivityTestClock(start: Date(timeIntervalSince1970: 130_000))
         let engine = SessionTimerEngine(now: { clock.now })
@@ -57,6 +85,7 @@ final class LiveActivityLifecycleTests: XCTestCase {
         coordinator.reconcile(snapshot: engine.snapshot(), source: "ended")
 
         XCTAssertEqual(controller.endCount, 1)
+        XCTAssertNotNil(controller.lastEndSessionID)
         XCTAssertFalse(controller.isActive)
 
         let relaunchedEngine = SessionTimerEngine(now: { clock.now })
@@ -147,24 +176,41 @@ private final class SpyLiveActivityController: LiveActivityControlling {
     private(set) var updateCount = 0
     private(set) var endCount = 0
     private(set) var lastState: FeedTrackerLiveActivityAttributes.ContentState?
+    private(set) var lastStartSessionID: UUID?
+    private(set) var lastUpdateSessionID: UUID?
+    private(set) var lastEndSessionID: UUID?
+    private(set) var lastObservedSessionID: UUID?
+
+    func isActive(sessionID: UUID) -> Bool {
+        lastObservedSessionID = sessionID
+        return isActive && lastStartSessionID == sessionID
+    }
 
     func start(sessionID: UUID, state: FeedTrackerLiveActivityAttributes.ContentState) {
         isActive = true
         startCount += 1
+        lastStartSessionID = sessionID
+        lastObservedSessionID = sessionID
         lastState = state
     }
 
-    func update(state: FeedTrackerLiveActivityAttributes.ContentState) {
+    func update(sessionID: UUID, state: FeedTrackerLiveActivityAttributes.ContentState) {
         guard isActive else {
             return
         }
         updateCount += 1
+        lastUpdateSessionID = sessionID
+        lastObservedSessionID = sessionID
         lastState = state
     }
 
-    func end(state: FeedTrackerLiveActivityAttributes.ContentState?) {
+    func end(sessionID: UUID?, state: FeedTrackerLiveActivityAttributes.ContentState?) {
         isActive = false
         endCount += 1
+        lastEndSessionID = sessionID
+        if let sessionID {
+            lastObservedSessionID = sessionID
+        }
         if let state {
             lastState = state
         }
