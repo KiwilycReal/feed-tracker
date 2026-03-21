@@ -1,10 +1,21 @@
 import Foundation
 
+public struct LiveActivityDisplayTarget: Codable, Equatable, Sendable {
+    public let activityID: String
+    public let sessionID: String
+
+    public init(activityID: String, sessionID: String) {
+        self.activityID = activityID
+        self.sessionID = sessionID
+    }
+}
+
 public enum FeedTrackerSharedStorage {
     public static let appGroupIdentifier = "group.com.kiwilyc.feedtracker"
     public static let directoryName = "FeedTracker"
     public static let recoveryKey = "feedtracker.active_session_recovery.v1"
     public static let syncMarkerKey = "feedtracker.external_sync_marker.v1"
+    public static let liveActivityDisplayTargetKey = "feedtracker.live_activity_display_target.v1"
     public static let liveActivityRenderVersionFileName = "live_activity_render_version.v1"
     public static let liveActivityRenderVersionLockFileName = "live_activity_render_version.lock"
     public static let liveActivityActionLockFileName = "live_activity_action.lock"
@@ -88,6 +99,40 @@ public enum FeedTrackerSharedStorage {
         userDefaults: UserDefaults? = FeedTrackerSharedStorage.sharedUserDefaults()
     ) -> String? {
         userDefaults?.string(forKey: syncMarkerKey)
+    }
+
+    @discardableResult
+    public static func writeLiveActivityDisplayTarget(
+        activityID: String,
+        sessionID: String,
+        userDefaults: UserDefaults? = FeedTrackerSharedStorage.sharedUserDefaults()
+    ) -> LiveActivityDisplayTarget {
+        let target = LiveActivityDisplayTarget(activityID: activityID, sessionID: sessionID)
+
+        guard let userDefaults,
+              let data = try? JSONEncoder().encode(target) else {
+            return target
+        }
+
+        userDefaults.set(data, forKey: liveActivityDisplayTargetKey)
+        return target
+    }
+
+    public static func readLiveActivityDisplayTarget(
+        userDefaults: UserDefaults? = FeedTrackerSharedStorage.sharedUserDefaults()
+    ) -> LiveActivityDisplayTarget? {
+        guard let userDefaults,
+              let data = userDefaults.data(forKey: liveActivityDisplayTargetKey) else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode(LiveActivityDisplayTarget.self, from: data)
+    }
+
+    public static func clearLiveActivityDisplayTarget(
+        userDefaults: UserDefaults? = FeedTrackerSharedStorage.sharedUserDefaults()
+    ) {
+        userDefaults?.removeObject(forKey: liveActivityDisplayTargetKey)
     }
 
     public static func migrateLegacySessionsIfNeeded(
