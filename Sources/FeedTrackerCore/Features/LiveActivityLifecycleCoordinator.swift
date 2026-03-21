@@ -9,7 +9,7 @@ public protocol LiveActivityControlling: AnyObject, Sendable {
     @MainActor var isActive: Bool { get }
     @MainActor func start(sessionID: UUID, state: FeedTrackerLiveActivityAttributes.ContentState)
     @MainActor func update(state: FeedTrackerLiveActivityAttributes.ContentState)
-    @MainActor func end()
+    @MainActor func end(state: FeedTrackerLiveActivityAttributes.ContentState?)
 }
 
 public final class NoopLiveActivityController: LiveActivityControlling {
@@ -25,13 +25,14 @@ public final class NoopLiveActivityController: LiveActivityControlling {
     public func update(state: FeedTrackerLiveActivityAttributes.ContentState) {}
 
     @MainActor
-    public func end() {}
+    public func end(state: FeedTrackerLiveActivityAttributes.ContentState?) {}
 }
 
 @MainActor
 public final class LiveActivityLifecycleCoordinator: LiveActivityLifecycleCoordinating {
     private let controller: any LiveActivityControlling
     private let now: @Sendable () -> Date
+    private let nextRenderVersion: @Sendable () -> UInt64
     private let diagnostics: (any DiagnosticsLogging)?
 
     private var activeSessionID: UUID?
@@ -39,17 +40,19 @@ public final class LiveActivityLifecycleCoordinator: LiveActivityLifecycleCoordi
     public init(
         controller: any LiveActivityControlling,
         now: @escaping @Sendable () -> Date = { Date() },
+        nextRenderVersion: @escaping @Sendable () -> UInt64 = { FeedTrackerSharedStorage.nextLiveActivityRenderVersion() },
         diagnostics: (any DiagnosticsLogging)? = nil
     ) {
         self.controller = controller
         self.now = now
+        self.nextRenderVersion = nextRenderVersion
         self.diagnostics = diagnostics
     }
 
     public func reconcile(snapshot: SessionTimerSnapshot, source: String) {
         switch snapshot.state {
         case .idle, .ended:
-            controller.end()
+            controller.end(state: contentState(for: snapshot))
             activeSessionID = nil
             diagnostics?.record(
                 category: "live_activity_lifecycle",
@@ -59,11 +62,7 @@ public final class LiveActivityLifecycleCoordinator: LiveActivityLifecycleCoordi
             )
 
         case .running, .paused, .stopped:
-            let state = LiveActivityState(snapshot: snapshot)
-            let contentState = FeedTrackerLiveActivityAttributes.ContentState(
-                state: state,
-                capturedAt: now()
-            )
+            let contentState = contentState(for: snapshot)
 
             if controller.isActive {
                 controller.update(state: contentState)
@@ -72,7 +71,8 @@ public final class LiveActivityLifecycleCoordinator: LiveActivityLifecycleCoordi
                     action: "update",
                     metadata: [
                         "source": source,
-                        "timerStatus": contentState.timerStatusRawValue
+                        "timerStatus": contentState.timerStatusRawValue,
+                        "renderVersion": "\(contentState.renderVersion)"
                     ],
                     source: "live_activity_coordinator"
                 )
@@ -86,12 +86,21 @@ public final class LiveActivityLifecycleCoordinator: LiveActivityLifecycleCoordi
                     metadata: [
                         "source": source,
                         "sessionID": sessionID.uuidString,
-                        "timerStatus": contentState.timerStatusRawValue
+                        "timerStatus": contentState.timerStatusRawValue,
+                        "renderVersion": "\(contentState.renderVersion)"
                     ],
                     source: "live_activity_coordinator"
                 )
             }
         }
+    }
+
+    private func contentState(for snapshot: SessionTimerSnapshot) -> FeedTrackerLiveActivityAttributes.ContentState {
+        FeedTrackerLiveActivityAttributes.ContentState(
+            state: LiveActivityState(snapshot: snapshot),
+            capturedAt: now(),
+            renderVersion: nextRenderVersion()
+        )
     }
 
     private func stableSessionIdentifier(startedAt: Date?) -> UUID {

@@ -51,10 +51,9 @@ struct FeedTrackerLiveActivityControlIntent: LiveActivityIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        let state = try await FeedTrackerLiveActivityIntentRuntime.execute(action: action.quickAction)
-        try await FeedTrackerLiveActivityIntentRuntime.refreshActivity(
-            targetSessionID: sessionID,
-            with: state
+        try await FeedTrackerLiveActivityIntentRuntime.executeAndRefresh(
+            action: action.quickAction,
+            targetSessionID: sessionID
         )
         return .result()
     }
@@ -73,13 +72,26 @@ private enum FeedTrackerLiveActivityIntentRuntime {
         }
     }
 
-    static func execute(action: LiveActivityQuickAction) async throws -> LiveActivityState {
-        try await executeOnMain(action: action)
+    struct RenderRefresh {
+        let state: LiveActivityState
+        let renderVersion: UInt64
+    }
+
+    static func executeAndRefresh(
+        action: LiveActivityQuickAction,
+        targetSessionID: String
+    ) async throws {
+        let actionLock = try makeActionLock()
+        defer { actionLock.unlock() }
+
+        let refresh = try await executeOnMain(action: action)
+        try await refreshActivity(targetSessionID: targetSessionID, with: refresh)
+        FeedTrackerSharedStorage.writeExternalSyncMarker()
     }
 
     static func refreshActivity(
         targetSessionID: String,
-        with state: LiveActivityState
+        with refresh: RenderRefresh
     ) async throws {
         let activities = Activity<FeedTrackerLiveActivityAttributes>.activities
         let targetActivity = activities.first(where: { $0.attributes.sessionID == targetSessionID }) ?? activities.first
@@ -88,18 +100,25 @@ private enum FeedTrackerLiveActivityIntentRuntime {
             return
         }
 
-        let contentState = FeedTrackerLiveActivityContentState(state: state)
+        guard refresh.renderVersion == FeedTrackerSharedStorage.currentLiveActivityRenderVersion() else {
+            return
+        }
+
+        let contentState = FeedTrackerLiveActivityContentState(
+            state: refresh.state,
+            renderVersion: refresh.renderVersion
+        )
         let content = ActivityContent(state: contentState, staleDate: nil)
 
-        if state.timerStatus == .ended {
+        if refresh.state.timerStatus == .ended {
             await activity.end(content, dismissalPolicy: .immediate)
-        } else if state.timerStatus != .idle {
+        } else if refresh.state.timerStatus != .idle {
             await activity.update(content)
         }
     }
 
     @MainActor
-    private static func executeOnMain(action: LiveActivityQuickAction) async throws -> LiveActivityState {
+    private static func executeOnMain(action: LiveActivityQuickAction) async throws -> RenderRefresh {
         let engine = SessionTimerEngine()
         let recoveryStore = try makeRecoveryStore()
 
@@ -124,8 +143,18 @@ private enum FeedTrackerLiveActivityIntentRuntime {
             try recoveryStore.clear()
         }
 
-        FeedTrackerSharedStorage.writeExternalSyncMarker()
-        return handler.currentState()
+        return RenderRefresh(
+            state: handler.currentState(),
+            renderVersion: FeedTrackerSharedStorage.nextLiveActivityRenderVersion()
+        )
+    }
+
+    private static func makeActionLock() throws -> FeedTrackerExclusiveFileLock {
+        guard let fileURL = FeedTrackerSharedStorage.liveActivityActionLockFileURL() else {
+            throw RuntimeError.sharedContainerUnavailable
+        }
+
+        return try FeedTrackerExclusiveFileLock(fileURL: fileURL)
     }
 
     private static func makeRecoveryStore() throws -> RecoveryStore {
