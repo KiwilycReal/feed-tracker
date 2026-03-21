@@ -77,6 +77,14 @@ private enum FeedTrackerLiveActivityIntentRuntime {
         let renderVersion: UInt64
     }
 
+    enum DisplayedRefreshAttempt: String {
+        case endedVisibleActivity = "ended_visible_activity"
+        case updatedVisibleActivity = "updated_visible_activity"
+        case skippedIdleState = "skipped_idle_state"
+        case skippedNoVisibleActivity = "skipped_no_visible_activity"
+        case skippedStaleRenderVersion = "skipped_stale_render_version"
+    }
+
     static func executeAndRefresh(
         action: LiveActivityQuickAction,
         targetSessionID: String
@@ -85,20 +93,32 @@ private enum FeedTrackerLiveActivityIntentRuntime {
         defer { actionLock.unlock() }
 
         let refresh = try await executeOnMain(action: action)
-        FeedTrackerSharedStorage.writeExternalSyncMarker()
-        try await refreshActivity(targetSessionID: targetSessionID, with: refresh)
+        let displayedRefreshAttempt = await refreshActivity(targetSessionID: targetSessionID, with: refresh)
+        let marker = FeedTrackerSharedStorage.writeExternalSyncMarker()
+
+        FeedTrackerSharedStorage.writeExternalSyncContext(
+            marker: marker,
+            source: "widget_live_activity_intent",
+            reason: "quick_action_execute_and_refresh",
+            action: action.rawValue,
+            sessionID: targetSessionID,
+            renderVersion: refresh.renderVersion,
+            displayedRefreshAttempt: displayedRefreshAttempt.rawValue
+        )
+        FeedTrackerSharedStorage.postLiveActivityExternalSyncSignal()
     }
 
+    @discardableResult
     static func refreshActivity(
         targetSessionID: String,
         with refresh: RenderRefresh
-    ) async throws {
+    ) async -> DisplayedRefreshAttempt {
         guard let activity = resolveTargetActivity(sessionID: targetSessionID) else {
-            return
+            return .skippedNoVisibleActivity
         }
 
         guard refresh.renderVersion == FeedTrackerSharedStorage.currentLiveActivityRenderVersion() else {
-            return
+            return .skippedStaleRenderVersion
         }
 
         let contentState = FeedTrackerLiveActivityContentState(
@@ -112,13 +132,19 @@ private enum FeedTrackerLiveActivityIntentRuntime {
             if FeedTrackerSharedStorage.readLiveActivityDisplayTarget()?.sessionID == targetSessionID {
                 FeedTrackerSharedStorage.clearLiveActivityDisplayTarget()
             }
-        } else if refresh.state.timerStatus != .idle {
-            FeedTrackerSharedStorage.writeLiveActivityDisplayTarget(
-                activityID: activity.id,
-                sessionID: targetSessionID
-            )
-            await activity.update(content)
+            return .endedVisibleActivity
         }
+
+        guard refresh.state.timerStatus != .idle else {
+            return .skippedIdleState
+        }
+
+        FeedTrackerSharedStorage.writeLiveActivityDisplayTarget(
+            activityID: activity.id,
+            sessionID: targetSessionID
+        )
+        await activity.update(content)
+        return .updatedVisibleActivity
     }
 
     @MainActor
