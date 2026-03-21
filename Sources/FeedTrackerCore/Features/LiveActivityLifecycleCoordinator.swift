@@ -6,26 +6,26 @@ public protocol LiveActivityLifecycleCoordinating: AnyObject, Sendable {
 }
 
 public protocol LiveActivityControlling: AnyObject, Sendable {
-    @MainActor var isActive: Bool { get }
+    @MainActor func isActive(sessionID: UUID) -> Bool
     @MainActor func start(sessionID: UUID, state: FeedTrackerLiveActivityAttributes.ContentState)
-    @MainActor func update(state: FeedTrackerLiveActivityAttributes.ContentState)
-    @MainActor func end(state: FeedTrackerLiveActivityAttributes.ContentState?)
+    @MainActor func update(sessionID: UUID, state: FeedTrackerLiveActivityAttributes.ContentState)
+    @MainActor func end(sessionID: UUID?, state: FeedTrackerLiveActivityAttributes.ContentState?)
 }
 
 public final class NoopLiveActivityController: LiveActivityControlling {
-    @MainActor
-    public var isActive: Bool { false }
-
     public init() {}
 
     @MainActor
-    public func start(sessionID: UUID, state: FeedTrackerLiveActivityAttributes.ContentState) {}
+    public func isActive(sessionID _: UUID) -> Bool { false }
 
     @MainActor
-    public func update(state: FeedTrackerLiveActivityAttributes.ContentState) {}
+    public func start(sessionID _: UUID, state _: FeedTrackerLiveActivityAttributes.ContentState) {}
 
     @MainActor
-    public func end(state: FeedTrackerLiveActivityAttributes.ContentState?) {}
+    public func update(sessionID _: UUID, state _: FeedTrackerLiveActivityAttributes.ContentState) {}
+
+    @MainActor
+    public func end(sessionID _: UUID?, state _: FeedTrackerLiveActivityAttributes.ContentState?) {}
 }
 
 @MainActor
@@ -52,7 +52,7 @@ public final class LiveActivityLifecycleCoordinator: LiveActivityLifecycleCoordi
     public func reconcile(snapshot: SessionTimerSnapshot, source: String) {
         switch snapshot.state {
         case .idle, .ended:
-            controller.end(state: contentState(for: snapshot))
+            controller.end(sessionID: activeSessionID ?? snapshot.sessionID, state: contentState(for: snapshot))
             activeSessionID = nil
             diagnostics?.record(
                 category: "live_activity_lifecycle",
@@ -62,23 +62,24 @@ public final class LiveActivityLifecycleCoordinator: LiveActivityLifecycleCoordi
             )
 
         case .running, .paused, .stopped:
+            let sessionID = liveActivitySessionIdentifier(for: snapshot)
             let contentState = contentState(for: snapshot)
+            activeSessionID = sessionID
 
-            if controller.isActive {
-                controller.update(state: contentState)
+            if controller.isActive(sessionID: sessionID) {
+                controller.update(sessionID: sessionID, state: contentState)
                 diagnostics?.record(
                     category: "live_activity_lifecycle",
                     action: "update",
                     metadata: [
                         "source": source,
+                        "sessionID": sessionID.uuidString,
                         "timerStatus": contentState.timerStatusRawValue,
                         "renderVersion": "\(contentState.renderVersion)"
                     ],
                     source: "live_activity_coordinator"
                 )
             } else {
-                let sessionID = stableSessionIdentifier(startedAt: snapshot.startedAt)
-                activeSessionID = sessionID
                 controller.start(sessionID: sessionID, state: contentState)
                 diagnostics?.record(
                     category: "live_activity_lifecycle",
@@ -101,6 +102,14 @@ public final class LiveActivityLifecycleCoordinator: LiveActivityLifecycleCoordi
             capturedAt: now(),
             renderVersion: nextRenderVersion()
         )
+    }
+
+    private func liveActivitySessionIdentifier(for snapshot: SessionTimerSnapshot) -> UUID {
+        if let sessionID = snapshot.sessionID {
+            return sessionID
+        }
+
+        return stableSessionIdentifier(startedAt: snapshot.startedAt)
     }
 
     private func stableSessionIdentifier(startedAt: Date?) -> UUID {

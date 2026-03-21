@@ -215,10 +215,13 @@ final class FeedTrackerDependencies {
             await reloadFromExternalSyncIfNeeded(source: "app.scene.active.external_sync")
             reconcileLiveActivity(source: "app.scene.active")
         case .inactive:
+            await reloadFromExternalSyncIfNeeded(source: "app.scene.inactive.external_sync")
             reconcileLiveActivity(source: "app.scene.inactive")
         case .background:
+            await reloadFromExternalSyncIfNeeded(source: "app.scene.background.external_sync")
             reconcileLiveActivity(source: "app.scene.background")
         @unknown default:
+            await reloadFromExternalSyncIfNeeded(source: "app.scene.unknown.external_sync")
             reconcileLiveActivity(source: "app.scene.unknown")
         }
     }

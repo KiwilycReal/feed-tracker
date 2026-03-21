@@ -95,6 +95,58 @@ final class LiveActivityQuickActionHandlerTests: XCTestCase {
         XCTAssertEqual(paused.rightDuration, 7, accuracy: 0.001)
     }
 
+    func testSwitchSideFromPausedStateResumesAndPersistsNewActiveSide() async throws {
+        let clock = QuickActionTestClock(start: Date(timeIntervalSince1970: 60_500))
+        let engine = SessionTimerEngine(now: { clock.now })
+        let repository = InMemoryFeedingSessionRepository()
+        let handler = LiveActivityQuickActionHandler(engine: engine, repository: repository)
+
+        try await handler.handle(.startLeft)
+        let startedSessions = try await repository.fetchAll()
+        let started = try XCTUnwrap(startedSessions.first)
+        clock.advance(seconds: 9)
+        try await handler.handle(.pauseSession)
+
+        clock.advance(seconds: 20)
+        try await handler.handle(.switchSide)
+
+        let snapshot = handler.currentState(at: clock.now)
+        XCTAssertEqual(snapshot.timerStatus, .running)
+        XCTAssertEqual(snapshot.activeSide, .right)
+        XCTAssertEqual(snapshot.leftElapsed, 9, accuracy: 0.001)
+
+        let persistedRecord = try await repository.fetch(id: started.id)
+        let persisted = try XCTUnwrap(persistedRecord)
+        XCTAssertEqual(persisted.status, .active)
+        XCTAssertEqual(persisted.leftDuration, 9, accuracy: 0.001)
+        XCTAssertEqual(persisted.rightDuration, 0, accuracy: 0.001)
+    }
+
+    func testTerminateAfterPausePersistsCompletedSessionWithoutFurtherActiveDrift() async throws {
+        let clock = QuickActionTestClock(start: Date(timeIntervalSince1970: 61_000))
+        let engine = SessionTimerEngine(now: { clock.now })
+        let repository = InMemoryFeedingSessionRepository()
+        let handler = LiveActivityQuickActionHandler(engine: engine, repository: repository)
+
+        try await handler.handle(.startRight)
+        let startedSessions = try await repository.fetchAll()
+        let started = try XCTUnwrap(startedSessions.first)
+        clock.advance(seconds: 14)
+        try await handler.handle(.pauseSession)
+        clock.advance(seconds: 30)
+
+        let ended = try await handler.handle(.terminateSession)
+        let session = try XCTUnwrap(ended)
+        let persistedRecord = try await repository.fetch(id: started.id)
+        let persisted = try XCTUnwrap(persistedRecord)
+
+        XCTAssertEqual(session.id, started.id)
+        XCTAssertEqual(session.status, .completed)
+        XCTAssertEqual(session.totalDuration, 14, accuracy: 0.001)
+        XCTAssertEqual(persisted.totalDuration, 14, accuracy: 0.001)
+        XCTAssertEqual(handler.currentState(at: clock.now).timerStatus, .ended)
+    }
+
     func testTerminateIsIdempotentAfterEndedAndDoesNotMutateState() async throws {
         let clock = QuickActionTestClock(start: Date(timeIntervalSince1970: 80_000))
         let engine = SessionTimerEngine(now: { clock.now })

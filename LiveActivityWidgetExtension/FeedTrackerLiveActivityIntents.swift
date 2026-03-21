@@ -93,10 +93,7 @@ private enum FeedTrackerLiveActivityIntentRuntime {
         targetSessionID: String,
         with refresh: RenderRefresh
     ) async throws {
-        let activities = Activity<FeedTrackerLiveActivityAttributes>.activities
-        let targetActivity = activities.first(where: { $0.attributes.sessionID == targetSessionID }) ?? activities.first
-
-        guard let activity = targetActivity else {
+        guard let activity = resolveTargetActivity(sessionID: targetSessionID) else {
             return
         }
 
@@ -112,7 +109,14 @@ private enum FeedTrackerLiveActivityIntentRuntime {
 
         if refresh.state.timerStatus == .ended {
             await activity.end(content, dismissalPolicy: .immediate)
+            if FeedTrackerSharedStorage.readLiveActivityDisplayTarget()?.sessionID == targetSessionID {
+                FeedTrackerSharedStorage.clearLiveActivityDisplayTarget()
+            }
         } else if refresh.state.timerStatus != .idle {
+            FeedTrackerSharedStorage.writeLiveActivityDisplayTarget(
+                activityID: activity.id,
+                sessionID: targetSessionID
+            )
             await activity.update(content)
         }
     }
@@ -176,6 +180,32 @@ private enum FeedTrackerLiveActivityIntentRuntime {
         }
 
         return repository
+    }
+
+    private static func resolveTargetActivity(sessionID: String) -> Activity<FeedTrackerLiveActivityAttributes>? {
+        let activities = Activity<FeedTrackerLiveActivityAttributes>.activities
+
+        if let storedTarget = FeedTrackerSharedStorage.readLiveActivityDisplayTarget(),
+           storedTarget.sessionID == sessionID,
+           let activity = activities.first(where: {
+               $0.id == storedTarget.activityID && $0.attributes.sessionID == sessionID
+           }) {
+            return activity
+        }
+
+        if let activity = activities.first(where: { $0.attributes.sessionID == sessionID }) {
+            FeedTrackerSharedStorage.writeLiveActivityDisplayTarget(
+                activityID: activity.id,
+                sessionID: sessionID
+            )
+            return activity
+        }
+
+        if FeedTrackerSharedStorage.readLiveActivityDisplayTarget()?.sessionID == sessionID {
+            FeedTrackerSharedStorage.clearLiveActivityDisplayTarget()
+        }
+
+        return nil
     }
 }
 
