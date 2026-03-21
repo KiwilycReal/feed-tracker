@@ -49,4 +49,16 @@ if [[ ! -f "$config_path" ]]; then
   exit 1
 fi
 
+scheme="${CI_XCODE_SCHEME}"
+if [[ -n "$project" ]]; then
+  build_settings="$(xcodebuild -project "$project" -scheme "$scheme" -configuration Release -showBuildSettings 2>/dev/null)"
+else
+  build_settings="$(xcodebuild -workspace "$workspace" -scheme "$scheme" -configuration Release -showBuildSettings 2>/dev/null)"
+fi
+
+if ! grep -q "INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO" <<<"$build_settings"; then
+  echo "ERROR_ONE_LINE: Export compliance default missing for shipping target | ACTION: set INFOPLIST_KEY_ITSAppUsesNonExemptEncryption=NO in the actual CI shipping project/workspace and re-run release workflow."
+  exit 1
+fi
+
 echo "Release contract validation passed for readonly release lane."
