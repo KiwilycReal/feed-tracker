@@ -7,14 +7,52 @@ public struct FeedTrackerLiveActivityContentState: Codable, Hashable, Sendable {
     public var totalElapsed: TimeInterval
     public var timerStatusRawValue: String
     public var capturedAt: Date
+    public var renderVersion: UInt64
 
-    public init(state: LiveActivityState, capturedAt: Date = Date()) {
+    private enum CodingKeys: String, CodingKey {
+        case activeSideRawValue
+        case leftElapsed
+        case rightElapsed
+        case totalElapsed
+        case timerStatusRawValue
+        case capturedAt
+        case renderVersion
+    }
+
+    public init(
+        state: LiveActivityState,
+        capturedAt: Date = Date(),
+        renderVersion: UInt64 = 0
+    ) {
         self.activeSideRawValue = state.activeSide?.rawValue
         self.leftElapsed = state.leftElapsed
         self.rightElapsed = state.rightElapsed
         self.totalElapsed = state.totalElapsed
         self.timerStatusRawValue = state.timerStatus.rawValue
         self.capturedAt = capturedAt
+        self.renderVersion = renderVersion
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.activeSideRawValue = try container.decodeIfPresent(String.self, forKey: .activeSideRawValue)
+        self.leftElapsed = try container.decode(TimeInterval.self, forKey: .leftElapsed)
+        self.rightElapsed = try container.decode(TimeInterval.self, forKey: .rightElapsed)
+        self.totalElapsed = try container.decode(TimeInterval.self, forKey: .totalElapsed)
+        self.timerStatusRawValue = try container.decode(String.self, forKey: .timerStatusRawValue)
+        self.capturedAt = try container.decode(Date.self, forKey: .capturedAt)
+        self.renderVersion = try container.decodeIfPresent(UInt64.self, forKey: .renderVersion) ?? 0
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(activeSideRawValue, forKey: .activeSideRawValue)
+        try container.encode(leftElapsed, forKey: .leftElapsed)
+        try container.encode(rightElapsed, forKey: .rightElapsed)
+        try container.encode(totalElapsed, forKey: .totalElapsed)
+        try container.encode(timerStatusRawValue, forKey: .timerStatusRawValue)
+        try container.encode(capturedAt, forKey: .capturedAt)
+        try container.encode(renderVersion, forKey: .renderVersion)
     }
 
     public func projectedTotalElapsed(at now: Date) -> TimeInterval {

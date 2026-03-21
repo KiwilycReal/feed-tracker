@@ -15,10 +15,7 @@ public final class ActivityKitLiveActivityController: LiveActivityControlling {
 
     public func start(sessionID: UUID, state: FeedTrackerLiveActivityAttributes.ContentState) {
         if let activity = resolveActivity() {
-            let content = ActivityContent(state: state, staleDate: nil)
-            Task {
-                await activity.update(content)
-            }
+            enqueueUpdate(activity: activity, state: state)
             return
         }
 
@@ -26,12 +23,20 @@ public final class ActivityKitLiveActivityController: LiveActivityControlling {
         let content = ActivityContent(state: state, staleDate: nil)
 
         Task {
+            guard shouldApplyRenderVersion(state.renderVersion) else {
+                return
+            }
+
             do {
                 let activity = try Activity<FeedTrackerLiveActivityAttributes>.request(
                     attributes: attributes,
                     content: content,
                     pushType: nil
                 )
+                guard shouldApplyRenderVersion(state.renderVersion) else {
+                    await activity.end(nil, dismissalPolicy: .immediate)
+                    return
+                }
                 activityID = activity.id
             } catch {
                 // best-effort lifecycle continuity; ignore request failure to avoid breaking primary flow
@@ -44,21 +49,46 @@ public final class ActivityKitLiveActivityController: LiveActivityControlling {
             return
         }
 
+        enqueueUpdate(activity: activity, state: state)
+    }
+
+    public func end(state: FeedTrackerLiveActivityAttributes.ContentState?) {
+        let renderVersion = state?.renderVersion ?? FeedTrackerSharedStorage.nextLiveActivityRenderVersion()
+        guard let activity = resolveActivity() else {
+            activityID = nil
+            return
+        }
+
+        let content = state.map { ActivityContent(state: $0, staleDate: nil) }
+        Task {
+            guard shouldApplyRenderVersion(renderVersion) else {
+                return
+            }
+
+            await activity.end(content, dismissalPolicy: .immediate)
+            guard shouldApplyRenderVersion(renderVersion) else {
+                return
+            }
+            activityID = nil
+        }
+    }
+
+    private func enqueueUpdate(
+        activity: Activity<FeedTrackerLiveActivityAttributes>,
+        state: FeedTrackerLiveActivityAttributes.ContentState
+    ) {
         let content = ActivityContent(state: state, staleDate: nil)
         Task {
+            guard shouldApplyRenderVersion(state.renderVersion) else {
+                return
+            }
+
             await activity.update(content)
         }
     }
 
-    public func end() {
-        guard let activity = resolveActivity() else {
-            return
-        }
-
-        Task {
-            await activity.end(nil, dismissalPolicy: .immediate)
-        }
-        activityID = nil
+    private func shouldApplyRenderVersion(_ renderVersion: UInt64) -> Bool {
+        renderVersion == FeedTrackerSharedStorage.currentLiveActivityRenderVersion()
     }
 
     private func resolveActivity() -> Activity<FeedTrackerLiveActivityAttributes>? {
