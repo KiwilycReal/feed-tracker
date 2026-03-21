@@ -94,6 +94,37 @@ def match_readonly_mode
   ENV.fetch("MATCH_READONLY", "true").to_s.strip.downcase != "false"
 end
 
+def current_project_build_number(project_path)
+  pbxproj_path = File.join(project_path, "project.pbxproj")
+  return 0 unless File.exist?(pbxproj_path)
+
+  File.read(pbxproj_path).scan(/CURRENT_PROJECT_VERSION = (\d+);/).flatten.map(&:to_i).max || 0
+end
+
+def release_build_number_timestamp
+  timezone = ENV.fetch("CI_BUILD_NUMBER_TIMEZONE", "Australia/Melbourne")
+  original_timezone = ENV["TZ"]
+  ENV["TZ"] = timezone
+
+  Time.now.strftime("%Y%m%d%H%M%S").to_i
+ensure
+  if original_timezone.nil?
+    ENV.delete("TZ")
+  else
+    ENV["TZ"] = original_timezone
+  end
+end
+
+def next_release_build_number(project_path)
+  manual_override = ENV.fetch("CI_BUILD_NUMBER", "").to_s.strip
+  return manual_override unless manual_override.empty?
+
+  timestamp_candidate = release_build_number_timestamp
+  project_candidate = current_project_build_number(project_path) + 1
+
+  [timestamp_candidate, project_candidate].max.to_s
+end
+
 platform :ios do
   desc "Readonly TestFlight release lane (single CI path)."
   lane :testflight_release do
@@ -204,6 +235,13 @@ platform :ios do
       build_options[:workspace] = workspace
     end
     build_options[:scheme] = scheme
+
+    build_number = next_release_build_number(project)
+    increment_build_number(
+      build_number: build_number,
+      xcodeproj: project
+    )
+    UI.message("Using CI release build number #{build_number}")
 
     build_app(build_options)
 
