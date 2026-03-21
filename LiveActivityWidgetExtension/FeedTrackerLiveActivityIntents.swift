@@ -85,8 +85,8 @@ private enum FeedTrackerLiveActivityIntentRuntime {
         defer { actionLock.unlock() }
 
         let refresh = try await executeOnMain(action: action)
-        try await refreshActivity(targetSessionID: targetSessionID, with: refresh)
         FeedTrackerSharedStorage.writeExternalSyncMarker()
+        try await refreshActivity(targetSessionID: targetSessionID, with: refresh)
     }
 
     static func refreshActivity(
