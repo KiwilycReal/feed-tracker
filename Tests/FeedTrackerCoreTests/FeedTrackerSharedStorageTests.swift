@@ -48,6 +48,8 @@ final class FeedTrackerSharedStorageTests: XCTestCase {
             sessionID: "session-456",
             renderVersion: 42,
             displayedRefreshAttempt: "skipped_no_visible_activity",
+            executionHost: "widget_extension",
+            refreshStrategy: "activitykit_direct_refresh",
             timestamp: timestamp,
             userDefaults: userDefaults
         )
@@ -62,6 +64,8 @@ final class FeedTrackerSharedStorageTests: XCTestCase {
                 sessionID: "session-456",
                 renderVersion: 42,
                 displayedRefreshAttempt: "skipped_no_visible_activity",
+                executionHost: "widget_extension",
+                refreshStrategy: "activitykit_direct_refresh",
                 timestamp: timestamp
             )
         )
