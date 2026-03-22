@@ -183,6 +183,11 @@ final class FeedTrackerDependencies {
             sourceTag: "ios-app"
         )
         self.lastHandledExternalSyncMarker = nil
+#if canImport(AppIntents)
+        if #available(iOS 17.0, *) {
+            FeedTrackerLiveActivityIntentDependency.executor = self
+        }
+#endif
         _ = liveActivityExternalSyncObserver
     }
 
@@ -236,6 +241,71 @@ final class FeedTrackerDependencies {
         liveActivityCoordinator.reconcile(snapshot: engine.snapshot(), source: source)
     }
 
+    private func preloadEngineForAppHostedIntent(source: String) {
+        do {
+            if let recoveryState = try activeSessionRecoveryStore.load(strategy: .primaryStoreAuthoritativeWhenMissing) {
+                try engine.restore(from: recoveryState)
+                diagnosticsLogger.record(
+                    category: "live_activity_intent",
+                    action: "preload_recovery_success",
+                    metadata: [
+                        "source": source,
+                        "status": recoveryState.status.rawValue
+                    ],
+                    source: "ios-app"
+                )
+            } else {
+                try activeSessionRecoveryStore.clear()
+                engine.reset()
+                diagnosticsLogger.record(
+                    category: "live_activity_intent",
+                    action: "preload_recovery_reset",
+                    metadata: ["source": source],
+                    source: "ios-app"
+                )
+            }
+        } catch {
+            diagnosticsLogger.recordError(
+                context: "live_activity_intent.preload_recovery",
+                message: error.localizedDescription,
+                metadata: ["source": source],
+                source: "ios-app"
+            )
+        }
+    }
+
+    private func persistRecoveryStateForAppHostedIntent(source: String) {
+        do {
+            if let recoveryState = engine.recoveryStateForPersistence() {
+                try activeSessionRecoveryStore.save(recoveryState)
+                diagnosticsLogger.record(
+                    category: "live_activity_intent",
+                    action: "persist_recovery_state",
+                    metadata: [
+                        "source": source,
+                        "status": recoveryState.status.rawValue
+                    ],
+                    source: "ios-app"
+                )
+            } else {
+                try activeSessionRecoveryStore.clear()
+                diagnosticsLogger.record(
+                    category: "live_activity_intent",
+                    action: "clear_recovery_state",
+                    metadata: ["source": source],
+                    source: "ios-app"
+                )
+            }
+        } catch {
+            diagnosticsLogger.recordError(
+                context: "live_activity_intent.persist_recovery",
+                message: error.localizedDescription,
+                metadata: ["source": source],
+                source: "ios-app"
+            )
+        }
+    }
+
     private func reloadFromExternalSyncIfNeeded(source: String) async {
         guard let syncMarker = FeedTrackerSharedStorage.readExternalSyncMarker(),
               syncMarker != lastHandledExternalSyncMarker else {
@@ -280,6 +350,12 @@ final class FeedTrackerDependencies {
             }
             if let displayedRefreshAttempt = context.displayedRefreshAttempt {
                 metadata["displayedRefreshAttempt"] = displayedRefreshAttempt
+            }
+            if let executionHost = context.executionHost {
+                metadata["executionHost"] = executionHost
+            }
+            if let refreshStrategy = context.refreshStrategy {
+                metadata["refreshStrategy"] = refreshStrategy
             }
             if let syncMarker, syncMarker != context.marker {
                 metadata["markerMismatch"] = "true"
@@ -339,6 +415,68 @@ final class FeedTrackerDependencies {
         }
     }
 }
+
+#if canImport(AppIntents)
+@available(iOS 17.0, *)
+extension FeedTrackerDependencies: FeedTrackerLiveActivityIntentAppExecuting {
+    func execute(
+        action: LiveActivityQuickAction,
+        targetSessionID: String
+    ) async throws -> FeedTrackerLiveActivityIntentExecutionReport {
+        let source = "app.live_activity_intent"
+        preloadEngineForAppHostedIntent(source: source)
+
+        diagnosticsLogger.record(
+            category: "live_activity_intent",
+            action: "execute_in_app_host",
+            metadata: [
+                "action": action.rawValue,
+                "targetSessionID": targetSessionID
+            ],
+            source: "ios-app"
+        )
+
+        _ = try await quickActionHandler.handle(action)
+        persistRecoveryStateForAppHostedIntent(source: source)
+
+        do {
+            try await historyViewModel.reload()
+        } catch {
+            diagnosticsLogger.recordError(
+                context: "live_activity_intent.history_reload",
+                message: error.localizedDescription,
+                metadata: ["action": action.rawValue],
+                source: "ios-app"
+            )
+        }
+
+        reconcileLiveActivity(source: source)
+
+        let report = FeedTrackerLiveActivityIntentExecutionReport(
+            source: "app_live_activity_intent",
+            reason: "quick_action_execute_with_app_host",
+            executionHost: "app",
+            refreshStrategy: "app_live_activity_coordinator",
+            renderVersion: FeedTrackerSharedStorage.currentLiveActivityRenderVersion(),
+            displayedRefreshAttempt: "app_reconcile_requested",
+            shouldPostExternalSyncSignal: false
+        )
+
+        diagnosticsLogger.record(
+            category: "live_activity_intent",
+            action: "app_host_reconcile_requested",
+            metadata: [
+                "action": action.rawValue,
+                "targetSessionID": targetSessionID,
+                "renderVersion": "\(report.renderVersion ?? 0)"
+            ],
+            source: "ios-app"
+        )
+
+        return report
+    }
+}
+#endif
 
 enum DeviceModel {
     static func currentIdentifier() -> String {
