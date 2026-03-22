@@ -21,6 +21,8 @@ public struct ExternalSyncContext: Codable, Equatable, Sendable {
     public let sessionID: String?
     public let renderVersion: UInt64?
     public let displayedRefreshAttempt: String?
+    public let executionHost: String?
+    public let refreshStrategy: String?
     public let timestamp: Date
 
     public init(
@@ -31,6 +33,8 @@ public struct ExternalSyncContext: Codable, Equatable, Sendable {
         sessionID: String? = nil,
         renderVersion: UInt64? = nil,
         displayedRefreshAttempt: String? = nil,
+        executionHost: String? = nil,
+        refreshStrategy: String? = nil,
         timestamp: Date = Date()
     ) {
         self.marker = marker
@@ -40,6 +44,8 @@ public struct ExternalSyncContext: Codable, Equatable, Sendable {
         self.sessionID = sessionID
         self.renderVersion = renderVersion
         self.displayedRefreshAttempt = displayedRefreshAttempt
+        self.executionHost = executionHost
+        self.refreshStrategy = refreshStrategy
         self.timestamp = timestamp
     }
 }
@@ -146,6 +152,8 @@ public enum FeedTrackerSharedStorage {
         sessionID: String? = nil,
         renderVersion: UInt64? = nil,
         displayedRefreshAttempt: String? = nil,
+        executionHost: String? = nil,
+        refreshStrategy: String? = nil,
         timestamp: Date = Date(),
         userDefaults: UserDefaults? = FeedTrackerSharedStorage.sharedUserDefaults()
     ) -> ExternalSyncContext {
@@ -157,6 +165,8 @@ public enum FeedTrackerSharedStorage {
             sessionID: sessionID,
             renderVersion: renderVersion,
             displayedRefreshAttempt: displayedRefreshAttempt,
+            executionHost: executionHost,
+            refreshStrategy: refreshStrategy,
             timestamp: timestamp
         )
 
