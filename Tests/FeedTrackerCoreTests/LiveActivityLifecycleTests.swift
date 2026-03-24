@@ -148,6 +148,34 @@ final class LiveActivityLifecycleTests: XCTestCase {
         XCTAssertEqual(state.projectedActiveSideElapsed(at: later), 85, accuracy: 0.001)
     }
 
+    func testProjectedDisplayKeepsActiveAndTotalTimersOnSharedCheckpoint() {
+        let now = Date(timeIntervalSince1970: 140_500)
+        let state = FeedTrackerLiveActivityContentState(
+            state: LiveActivityState(
+                snapshot: SessionTimerSnapshot(
+                    state: .running(side: .right),
+                    activeSide: .right,
+                    leftElapsed: 24,
+                    rightElapsed: 11,
+                    totalElapsed: 35,
+                    startedAt: now.addingTimeInterval(-35),
+                    endedAt: nil
+                )
+            ),
+            capturedAt: now
+        )
+
+        let later = now.addingTimeInterval(19)
+        let projection = state.projectedDisplay(at: later)
+
+        XCTAssertEqual(projection.activeSide, .right)
+        XCTAssertEqual(projection.leftElapsed, 24, accuracy: 0.001)
+        XCTAssertEqual(projection.rightElapsed, 30, accuracy: 0.001)
+        XCTAssertEqual(projection.activeSideElapsed, 30, accuracy: 0.001)
+        XCTAssertEqual(projection.totalElapsed, 54, accuracy: 0.001)
+        XCTAssertEqual(projection.timerStatus, .running)
+    }
+
     func testPausedSnapshotPreservesLastActiveSideForLiveActivityLayout() throws {
         let clock = LiveActivityTestClock(start: Date(timeIntervalSince1970: 141_000))
         let engine = SessionTimerEngine(now: { clock.now })
@@ -167,6 +195,31 @@ final class LiveActivityLifecycleTests: XCTestCase {
         XCTAssertEqual(state.activeSideRawValue, FeedingSide.right.rawValue)
         XCTAssertEqual(state.projectedActiveSideElapsed(at: clock.now.addingTimeInterval(45)), 18, accuracy: 0.001)
         XCTAssertEqual(state.projectedTotalElapsed(at: clock.now.addingTimeInterval(45)), 18, accuracy: 0.001)
+    }
+
+    func testRunningContentStateSnapsDisplayCheckpointToWholeSecondBoundary() {
+        let capturedAt = Date(timeIntervalSince1970: 141_100.82)
+        let snapshot = SessionTimerSnapshot(
+            state: .running(side: .left),
+            activeSide: .left,
+            leftElapsed: 12.82,
+            rightElapsed: 5.31,
+            totalElapsed: 18.13,
+            startedAt: capturedAt.addingTimeInterval(-18.13),
+            endedAt: nil
+        )
+
+        let state = FeedTrackerLiveActivityContentState(
+            state: LiveActivityState(snapshot: snapshot),
+            capturedAt: capturedAt
+        )
+
+        XCTAssertEqual(state.capturedAt.timeIntervalSince1970, 141_100, accuracy: 0.001)
+        XCTAssertEqual(state.leftElapsed, 12, accuracy: 0.001)
+        XCTAssertEqual(state.rightElapsed, 5, accuracy: 0.001)
+        XCTAssertEqual(state.totalElapsed, 17, accuracy: 0.001)
+        XCTAssertEqual(state.projectedActiveSideElapsed(at: Date(timeIntervalSince1970: 141_103)), 15, accuracy: 0.001)
+        XCTAssertEqual(state.projectedTotalElapsed(at: Date(timeIntervalSince1970: 141_103)), 20, accuracy: 0.001)
     }
 
     func testContentStateDecodesLegacyPayloadWithoutRenderVersion() throws {

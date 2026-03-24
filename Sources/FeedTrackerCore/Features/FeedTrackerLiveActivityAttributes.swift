@@ -1,6 +1,38 @@
 import Foundation
 
+public struct FeedTrackerLiveActivityDisplayProjection: Equatable, Sendable {
+    public let activeSide: FeedingSide?
+    public let activeSideElapsed: TimeInterval
+    public let leftElapsed: TimeInterval
+    public let rightElapsed: TimeInterval
+    public let totalElapsed: TimeInterval
+    public let timerStatus: LiveActivityTimerStatus
+
+    public init(
+        activeSide: FeedingSide?,
+        activeSideElapsed: TimeInterval,
+        leftElapsed: TimeInterval,
+        rightElapsed: TimeInterval,
+        totalElapsed: TimeInterval,
+        timerStatus: LiveActivityTimerStatus
+    ) {
+        self.activeSide = activeSide
+        self.activeSideElapsed = activeSideElapsed
+        self.leftElapsed = leftElapsed
+        self.rightElapsed = rightElapsed
+        self.totalElapsed = totalElapsed
+        self.timerStatus = timerStatus
+    }
+}
+
 public struct FeedTrackerLiveActivityContentState: Codable, Hashable, Sendable {
+    private struct DisplayCheckpoint: Sendable {
+        let capturedAt: Date
+        let leftElapsed: TimeInterval
+        let rightElapsed: TimeInterval
+        let totalElapsed: TimeInterval
+    }
+
     public var activeSideRawValue: String?
     public var leftElapsed: TimeInterval
     public var rightElapsed: TimeInterval
@@ -24,12 +56,14 @@ public struct FeedTrackerLiveActivityContentState: Codable, Hashable, Sendable {
         capturedAt: Date = Date(),
         renderVersion: UInt64 = 0
     ) {
+        let displayCheckpoint = Self.displayCheckpoint(for: state, capturedAt: capturedAt)
+
         self.activeSideRawValue = state.activeSide?.rawValue
-        self.leftElapsed = state.leftElapsed
-        self.rightElapsed = state.rightElapsed
-        self.totalElapsed = state.totalElapsed
+        self.leftElapsed = displayCheckpoint.leftElapsed
+        self.rightElapsed = displayCheckpoint.rightElapsed
+        self.totalElapsed = displayCheckpoint.totalElapsed
         self.timerStatusRawValue = state.timerStatus.rawValue
-        self.capturedAt = capturedAt
+        self.capturedAt = displayCheckpoint.capturedAt
         self.renderVersion = renderVersion
     }
 
@@ -88,6 +122,42 @@ public struct FeedTrackerLiveActivityContentState: Codable, Hashable, Sendable {
         }
 
         return projectedElapsed(for: activeSide, at: now)
+    }
+
+    public func projectedDisplay(at now: Date) -> FeedTrackerLiveActivityDisplayProjection {
+        let activeSide = FeedingSide(rawValue: activeSideRawValue ?? "")
+        let projectedLeft = projectedElapsed(for: .left, at: now)
+        let projectedRight = projectedElapsed(for: .right, at: now)
+        let projectedTotal = projectedTotalElapsed(at: now)
+        let projectedActive = activeSide.map { projectedElapsed(for: $0, at: now) } ?? 0
+
+        return FeedTrackerLiveActivityDisplayProjection(
+            activeSide: activeSide,
+            activeSideElapsed: projectedActive,
+            leftElapsed: projectedLeft,
+            rightElapsed: projectedRight,
+            totalElapsed: projectedTotal,
+            timerStatus: LiveActivityTimerStatus(rawValue: timerStatusRawValue) ?? .idle
+        )
+    }
+
+    private static func displayCheckpoint(
+        for state: LiveActivityState,
+        capturedAt: Date
+    ) -> DisplayCheckpoint {
+        let normalizedCapturedAt = Date(
+            timeIntervalSinceReferenceDate: floor(capturedAt.timeIntervalSinceReferenceDate)
+        )
+        let normalizedLeftElapsed = max(0, floor(state.leftElapsed))
+        let normalizedRightElapsed = max(0, floor(state.rightElapsed))
+        let normalizedTotalElapsed = normalizedLeftElapsed + normalizedRightElapsed
+
+        return DisplayCheckpoint(
+            capturedAt: normalizedCapturedAt,
+            leftElapsed: normalizedLeftElapsed,
+            rightElapsed: normalizedRightElapsed,
+            totalElapsed: normalizedTotalElapsed
+        )
     }
 }
 

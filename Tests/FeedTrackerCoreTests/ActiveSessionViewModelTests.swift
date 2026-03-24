@@ -22,6 +22,34 @@ final class ActiveSessionViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.displayState.totalElapsed, 35, accuracy: 0.001)
     }
 
+    func testRefreshAlsoReconcilesLiveActivityFromAppTick() async throws {
+        let clock = ViewModelTestClock(start: Date(timeIntervalSince1970: 15_000))
+        let engine = SessionTimerEngine(now: { clock.now })
+        let repository = InMemoryFeedingSessionRepository()
+        let coordinator = LiveActivityCoordinatorSpy()
+        let viewModel = ActiveSessionViewModel(
+            engine: engine,
+            repository: repository,
+            liveActivityCoordinator: coordinator
+        )
+
+        try viewModel.start(side: .left)
+        XCTAssertEqual(coordinator.snapshots.count, 2)
+
+        clock.advance(seconds: 1)
+        viewModel.refresh(at: clock.now)
+        XCTAssertEqual(coordinator.snapshots.count, 3)
+        XCTAssertEqual(coordinator.snapshots.last?.totalElapsed ?? -1, 1, accuracy: 0.001)
+
+        viewModel.refresh(at: clock.now)
+        XCTAssertEqual(coordinator.snapshots.count, 3)
+
+        clock.advance(seconds: 1)
+        viewModel.refresh(at: clock.now)
+        XCTAssertEqual(coordinator.snapshots.count, 4)
+        XCTAssertEqual(coordinator.snapshots.last?.totalElapsed ?? -1, 2, accuracy: 0.001)
+    }
+
     func testEndSessionPersistsCompletedSession() async throws {
         let clock = ViewModelTestClock(start: Date(timeIntervalSince1970: 20_000))
         let engine = SessionTimerEngine(now: { clock.now })
@@ -97,6 +125,17 @@ final class ActiveSessionViewModelTests: XCTestCase {
         XCTAssertEqual(completed.status, .completed)
         XCTAssertEqual(completed.totalDuration, 14, accuracy: 0.001)
         XCTAssertEqual(completed.note, "keep final note")
+    }
+}
+
+@MainActor
+private final class LiveActivityCoordinatorSpy: LiveActivityLifecycleCoordinating {
+    private(set) var snapshots: [SessionTimerSnapshot] = []
+    private(set) var sources: [String] = []
+
+    func reconcile(snapshot: SessionTimerSnapshot, source: String) {
+        snapshots.append(snapshot)
+        sources.append(source)
     }
 }
 
