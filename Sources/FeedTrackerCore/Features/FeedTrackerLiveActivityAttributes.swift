@@ -63,6 +63,32 @@ public struct FeedTrackerLiveActivityContentState: Codable, Hashable, Sendable {
         let delta = max(0, now.timeIntervalSince(capturedAt))
         return totalElapsed + delta
     }
+
+    public func projectedElapsed(for side: FeedingSide, at now: Date) -> TimeInterval {
+        let baseline: TimeInterval
+        switch side {
+        case .left:
+            baseline = leftElapsed
+        case .right:
+            baseline = rightElapsed
+        }
+
+        guard timerStatusRawValue == LiveActivityTimerStatus.running.rawValue,
+              activeSideRawValue == side.rawValue else {
+            return baseline
+        }
+
+        let delta = max(0, now.timeIntervalSince(capturedAt))
+        return baseline + delta
+    }
+
+    public func projectedActiveSideElapsed(at now: Date) -> TimeInterval {
+        guard let activeSide = FeedingSide(rawValue: activeSideRawValue ?? "") else {
+            return 0
+        }
+
+        return projectedElapsed(for: activeSide, at: now)
+    }
 }
 
 #if canImport(ActivityKit) && os(iOS)

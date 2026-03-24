@@ -207,6 +207,7 @@ private enum FeedTrackerLiveActivityIntentFallbackRuntime {
     struct RenderRefresh {
         let state: LiveActivityState
         let renderVersion: UInt64
+        let persistenceDrainer: Task<Void, Never>?
     }
 
     enum DisplayedRefreshAttempt: String {
@@ -273,7 +274,7 @@ private enum FeedTrackerLiveActivityIntentFallbackRuntime {
             repository: try makeRepository()
         )
 
-        _ = try await handler.handle(action)
+        _ = try await handler.handle(action, persistenceMode: .deferred)
 
         if let persistedState = engine.recoveryStateForPersistence() {
             try recoveryStore.save(persistedState)
@@ -283,7 +284,8 @@ private enum FeedTrackerLiveActivityIntentFallbackRuntime {
 
         return RenderRefresh(
             state: handler.currentState(),
-            renderVersion: FeedTrackerSharedStorage.nextLiveActivityRenderVersion()
+            renderVersion: FeedTrackerSharedStorage.nextLiveActivityRenderVersion(),
+            persistenceDrainer: handler.pendingPersistenceDrainer()
         )
     }
 
@@ -357,6 +359,7 @@ private extension FeedTrackerLiveActivityIntentRuntime {
             targetSessionID: targetSessionID,
             with: refresh
         )
+        await refresh.persistenceDrainer?.value
 
         return FeedTrackerLiveActivityIntentExecutionReport(
             source: "widget_live_activity_intent",

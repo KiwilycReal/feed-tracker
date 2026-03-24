@@ -373,6 +373,39 @@ final class FeedTrackerDependencies {
         reconcileLiveActivity(source: "app.external_signal")
     }
 
+    private func scheduleHistoryReloadAfterQuickAction(source: String, action: String) {
+        Task { [weak self] in
+            guard let self else {
+                return
+            }
+
+            await self.quickActionHandler.flushPendingPersistence()
+
+            do {
+                try await self.historyViewModel.reload()
+                self.diagnosticsLogger.record(
+                    category: "live_activity_latency",
+                    action: "history_reload_after_quick_action",
+                    metadata: [
+                        "source": source,
+                        "action": action
+                    ],
+                    source: "ios-app"
+                )
+            } catch {
+                self.diagnosticsLogger.recordError(
+                    context: "live_activity.history_reload_after_quick_action",
+                    message: error.localizedDescription,
+                    metadata: [
+                        "source": source,
+                        "action": action
+                    ],
+                    source: "ios-app"
+                )
+            }
+        }
+    }
+
     func handleAppLaunch() async {
         await reloadFromExternalSyncIfNeeded(source: "app.launch.external_sync")
         reconcileLiveActivity(source: "app.launch")
@@ -402,9 +435,12 @@ final class FeedTrackerDependencies {
             return
         }
 
+        let requestedAction = liveActivityRouter.action(from: url)?.rawValue ?? "unknown"
+
         do {
-            _ = try await quickActionHandler.handle(url: url)
+            _ = try await quickActionHandler.handle(url: url, persistenceMode: .deferred)
             reconcileLiveActivity(source: "app.url.live_activity")
+            scheduleHistoryReloadAfterQuickAction(source: "app.url.live_activity", action: requestedAction)
         } catch {
             diagnosticsLogger.recordError(
                 context: "live_activity.url",
@@ -436,21 +472,10 @@ extension FeedTrackerDependencies: FeedTrackerLiveActivityIntentAppExecuting {
             source: "ios-app"
         )
 
-        _ = try await quickActionHandler.handle(action)
+        _ = try await quickActionHandler.handle(action, persistenceMode: .deferred)
         persistRecoveryStateForAppHostedIntent(source: source)
-
-        do {
-            try await historyViewModel.reload()
-        } catch {
-            diagnosticsLogger.recordError(
-                context: "live_activity_intent.history_reload",
-                message: error.localizedDescription,
-                metadata: ["action": action.rawValue],
-                source: "ios-app"
-            )
-        }
-
         reconcileLiveActivity(source: source)
+        scheduleHistoryReloadAfterQuickAction(source: source, action: action.rawValue)
 
         let report = FeedTrackerLiveActivityIntentExecutionReport(
             source: "app_live_activity_intent",
