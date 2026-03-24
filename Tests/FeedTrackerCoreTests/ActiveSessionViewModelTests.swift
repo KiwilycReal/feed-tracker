@@ -22,6 +22,23 @@ final class ActiveSessionViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.displayState.totalElapsed, 35, accuracy: 0.001)
     }
 
+    func testRefreshUsesSharedDisplayedSecondsForAppSurface() async throws {
+        let snapshot = SessionTimerSnapshot(
+            state: .paused(side: .right),
+            activeSide: .right,
+            leftElapsed: 1.8,
+            rightElapsed: 5.6,
+            totalElapsed: 7.4,
+            startedAt: Date(timeIntervalSince1970: 14_000),
+            endedAt: nil
+        )
+        let displayState = ActiveSessionDisplayState(snapshot: snapshot)
+
+        XCTAssertEqual(displayState.displayedLeftElapsed, 2, accuracy: 0.001)
+        XCTAssertEqual(displayState.displayedRightElapsed, 6, accuracy: 0.001)
+        XCTAssertEqual(displayState.displayedTotalElapsed, 8, accuracy: 0.001)
+    }
+
     func testRefreshAlsoReconcilesLiveActivityFromAppTick() async throws {
         let clock = ViewModelTestClock(start: Date(timeIntervalSince1970: 15_000))
         let engine = SessionTimerEngine(now: { clock.now })

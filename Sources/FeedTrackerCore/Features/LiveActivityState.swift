@@ -17,30 +17,33 @@ public struct LiveActivityState: Equatable, Sendable {
     public let endedAt: Date?
     public let timerStatus: LiveActivityTimerStatus
 
-    public init(snapshot: SessionTimerSnapshot) {
-        self.activeSide = snapshot.activeSide
-        self.leftElapsed = snapshot.leftElapsed
-        self.rightElapsed = snapshot.rightElapsed
-        self.totalElapsed = snapshot.totalElapsed
-        self.startedAt = snapshot.startedAt
-        self.endedAt = snapshot.endedAt
-        self.timerStatus = LiveActivityTimerStatus(state: snapshot.state)
+    public init(
+        activeSide: FeedingSide?,
+        leftElapsed: TimeInterval,
+        rightElapsed: TimeInterval,
+        totalElapsed: TimeInterval,
+        startedAt: Date?,
+        endedAt: Date?,
+        timerStatus: LiveActivityTimerStatus
+    ) {
+        self.activeSide = activeSide
+        self.leftElapsed = leftElapsed
+        self.rightElapsed = rightElapsed
+        self.totalElapsed = totalElapsed
+        self.startedAt = startedAt
+        self.endedAt = endedAt
+        self.timerStatus = timerStatus
     }
-}
 
-private extension LiveActivityTimerStatus {
-    init(state: SessionTimerState) {
-        switch state {
-        case .idle:
-            self = .idle
-        case .running:
-            self = .running
-        case .paused:
-            self = .paused
-        case .stopped:
-            self = .stopped
-        case .ended:
-            self = .ended
-        }
+    public init(snapshot: SessionTimerSnapshot) {
+        self.init(
+            activeSide: snapshot.activeSide,
+            leftElapsed: snapshot.leftElapsed,
+            rightElapsed: snapshot.rightElapsed,
+            totalElapsed: snapshot.totalElapsed,
+            startedAt: snapshot.startedAt,
+            endedAt: snapshot.endedAt,
+            timerStatus: LiveActivityTimerStatus(state: snapshot.state)
+        )
     }
 }

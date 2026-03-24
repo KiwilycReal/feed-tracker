@@ -62,9 +62,9 @@ public struct ActiveSessionView: View {
                 .foregroundStyle(FeedTrackerPalette.primaryText)
 
             VStack(spacing: 8) {
-                metricRow(title: "Left", value: SessionPresentation.durationText(viewModel.displayState.leftElapsed), tint: FeedTrackerPalette.leftSide)
-                metricRow(title: "Right", value: SessionPresentation.durationText(viewModel.displayState.rightElapsed), tint: FeedTrackerPalette.rightSide)
-                metricRow(title: "Total", value: SessionPresentation.durationText(viewModel.displayState.totalElapsed), tint: FeedTrackerPalette.accent)
+                metricRow(title: "Left", value: SessionPresentation.durationText(viewModel.displayState.displayedLeftElapsed), tint: FeedTrackerPalette.leftSide)
+                metricRow(title: "Right", value: SessionPresentation.durationText(viewModel.displayState.displayedRightElapsed), tint: FeedTrackerPalette.rightSide)
+                metricRow(title: "Total", value: SessionPresentation.durationText(viewModel.displayState.displayedTotalElapsed), tint: FeedTrackerPalette.accent)
             }
         }
         .feedTrackerCardStyle()

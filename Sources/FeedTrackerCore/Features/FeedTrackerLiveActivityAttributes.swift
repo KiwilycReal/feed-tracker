@@ -26,13 +26,6 @@ public struct FeedTrackerLiveActivityDisplayProjection: Equatable, Sendable {
 }
 
 public struct FeedTrackerLiveActivityContentState: Codable, Hashable, Sendable {
-    private struct DisplayCheckpoint: Sendable {
-        let capturedAt: Date
-        let leftElapsed: TimeInterval
-        let rightElapsed: TimeInterval
-        let totalElapsed: TimeInterval
-    }
-
     public var activeSideRawValue: String?
     public var leftElapsed: TimeInterval
     public var rightElapsed: TimeInterval
@@ -56,14 +49,12 @@ public struct FeedTrackerLiveActivityContentState: Codable, Hashable, Sendable {
         capturedAt: Date = Date(),
         renderVersion: UInt64 = 0
     ) {
-        let displayCheckpoint = Self.displayCheckpoint(for: state, capturedAt: capturedAt)
-
         self.activeSideRawValue = state.activeSide?.rawValue
-        self.leftElapsed = displayCheckpoint.leftElapsed
-        self.rightElapsed = displayCheckpoint.rightElapsed
-        self.totalElapsed = displayCheckpoint.totalElapsed
+        self.leftElapsed = max(0, state.leftElapsed)
+        self.rightElapsed = max(0, state.rightElapsed)
+        self.totalElapsed = max(0, state.totalElapsed)
         self.timerStatusRawValue = state.timerStatus.rawValue
-        self.capturedAt = displayCheckpoint.capturedAt
+        self.capturedAt = capturedAt
         self.renderVersion = renderVersion
     }
 
@@ -90,73 +81,49 @@ public struct FeedTrackerLiveActivityContentState: Codable, Hashable, Sendable {
     }
 
     public func projectedTotalElapsed(at now: Date) -> TimeInterval {
-        guard timerStatusRawValue == LiveActivityTimerStatus.running.rawValue else {
-            return totalElapsed
-        }
-
-        let delta = max(0, now.timeIntervalSince(capturedAt))
-        return totalElapsed + delta
+        projectedDisplayValues(at: now).totalElapsed
     }
 
     public func projectedElapsed(for side: FeedingSide, at now: Date) -> TimeInterval {
-        let baseline: TimeInterval
+        let projection = projectedDisplayValues(at: now)
         switch side {
         case .left:
-            baseline = leftElapsed
+            return projection.leftElapsed
         case .right:
-            baseline = rightElapsed
+            return projection.rightElapsed
         }
-
-        guard timerStatusRawValue == LiveActivityTimerStatus.running.rawValue,
-              activeSideRawValue == side.rawValue else {
-            return baseline
-        }
-
-        let delta = max(0, now.timeIntervalSince(capturedAt))
-        return baseline + delta
     }
 
     public func projectedActiveSideElapsed(at now: Date) -> TimeInterval {
-        guard let activeSide = FeedingSide(rawValue: activeSideRawValue ?? "") else {
-            return 0
-        }
-
-        return projectedElapsed(for: activeSide, at: now)
+        projectedDisplayValues(at: now).activeSideElapsed
     }
 
     public func projectedDisplay(at now: Date) -> FeedTrackerLiveActivityDisplayProjection {
-        let activeSide = FeedingSide(rawValue: activeSideRawValue ?? "")
-        let projectedLeft = projectedElapsed(for: .left, at: now)
-        let projectedRight = projectedElapsed(for: .right, at: now)
-        let projectedTotal = projectedTotalElapsed(at: now)
-        let projectedActive = activeSide.map { projectedElapsed(for: $0, at: now) } ?? 0
+        let projection = projectedDisplayValues(at: now)
 
         return FeedTrackerLiveActivityDisplayProjection(
-            activeSide: activeSide,
-            activeSideElapsed: projectedActive,
-            leftElapsed: projectedLeft,
-            rightElapsed: projectedRight,
-            totalElapsed: projectedTotal,
+            activeSide: projection.activeSide,
+            activeSideElapsed: projection.activeSideElapsed,
+            leftElapsed: projection.leftElapsed,
+            rightElapsed: projection.rightElapsed,
+            totalElapsed: projection.totalElapsed,
             timerStatus: LiveActivityTimerStatus(rawValue: timerStatusRawValue) ?? .idle
         )
     }
 
-    private static func displayCheckpoint(
-        for state: LiveActivityState,
-        capturedAt: Date
-    ) -> DisplayCheckpoint {
-        let normalizedCapturedAt = Date(
-            timeIntervalSinceReferenceDate: floor(capturedAt.timeIntervalSinceReferenceDate)
-        )
-        let normalizedLeftElapsed = max(0, floor(state.leftElapsed))
-        let normalizedRightElapsed = max(0, floor(state.rightElapsed))
-        let normalizedTotalElapsed = normalizedLeftElapsed + normalizedRightElapsed
-
-        return DisplayCheckpoint(
-            capturedAt: normalizedCapturedAt,
-            leftElapsed: normalizedLeftElapsed,
-            rightElapsed: normalizedRightElapsed,
-            totalElapsed: normalizedTotalElapsed
+    private func projectedDisplayValues(at now: Date) -> SessionTimerDisplayValues {
+        SessionTimerDisplayProjection.values(
+            state: LiveActivityState(
+                activeSide: FeedingSide(rawValue: activeSideRawValue ?? ""),
+                leftElapsed: leftElapsed,
+                rightElapsed: rightElapsed,
+                totalElapsed: totalElapsed,
+                startedAt: nil,
+                endedAt: nil,
+                timerStatus: LiveActivityTimerStatus(rawValue: timerStatusRawValue) ?? .idle
+            ),
+            capturedAt: capturedAt,
+            now: now
         )
     }
 }
