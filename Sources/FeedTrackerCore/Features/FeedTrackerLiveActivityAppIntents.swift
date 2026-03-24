@@ -359,7 +359,6 @@ private extension FeedTrackerLiveActivityIntentRuntime {
             targetSessionID: targetSessionID,
             with: refresh
         )
-        await refresh.persistenceDrainer?.value
 
         return FeedTrackerLiveActivityIntentExecutionReport(
             source: "widget_live_activity_intent",

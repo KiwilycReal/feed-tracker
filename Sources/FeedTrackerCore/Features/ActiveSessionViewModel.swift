@@ -38,6 +38,7 @@ public final class ActiveSessionViewModel: ObservableObject {
     private let liveActivityCoordinator: (any LiveActivityLifecycleCoordinating)?
 
     private var pendingSessionPersistTask: Task<Void, Never>?
+    private var lastSyncedLiveActivityToken: String?
 
     @Published public private(set) var displayState: ActiveSessionDisplayState
 
@@ -61,7 +62,9 @@ public final class ActiveSessionViewModel: ObservableObject {
     }
 
     public func refresh(at date: Date? = nil) {
-        displayState = displayState(for: engine.snapshot(at: date))
+        let snapshot = engine.snapshot(at: date)
+        displayState = displayState(for: snapshot)
+        syncLiveActivity(snapshot: snapshot, source: "active_session_vm.refresh")
     }
 
     public func reloadFromRecoveryStore(source: String) async {
@@ -414,7 +417,27 @@ private extension ActiveSessionViewModel {
     }
 
     func syncLiveActivity(source: String) {
-        liveActivityCoordinator?.reconcile(snapshot: engine.snapshot(), source: source)
+        syncLiveActivity(snapshot: engine.snapshot(), source: source)
+    }
+
+    func syncLiveActivity(snapshot: SessionTimerSnapshot, source: String) {
+        let syncToken = liveActivitySyncToken(for: snapshot)
+        guard syncToken != lastSyncedLiveActivityToken else {
+            return
+        }
+
+        liveActivityCoordinator?.reconcile(snapshot: snapshot, source: source)
+        lastSyncedLiveActivityToken = syncToken
+    }
+
+    func liveActivitySyncToken(for snapshot: SessionTimerSnapshot) -> String {
+        [
+            snapshot.sessionID?.uuidString ?? "none",
+            sessionStateLabel(snapshot.state),
+            "\(Int(snapshot.leftElapsed.rounded(.down)))",
+            "\(Int(snapshot.rightElapsed.rounded(.down)))",
+            "\(Int(snapshot.totalElapsed.rounded(.down)))"
+        ].joined(separator: "|")
     }
 
     func sessionStateLabel(_ state: SessionTimerState) -> String {
