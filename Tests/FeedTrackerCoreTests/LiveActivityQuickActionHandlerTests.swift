@@ -227,6 +227,32 @@ final class LiveActivityQuickActionHandlerTests: XCTestCase {
         XCTAssertEqual(all.count, 1)
     }
 
+    func testDeferredPersistenceLeavesMutatedStateAvailableBeforeRepositoryFlush() async throws {
+        let clock = QuickActionTestClock(start: Date(timeIntervalSince1970: 94_500))
+        let engine = SessionTimerEngine(now: { clock.now })
+        let repository = DelayedUpsertRepository(delayNanoseconds: 400_000_000)
+        let handler = LiveActivityQuickActionHandler(engine: engine, repository: repository)
+
+        try await handler.handle(.startLeft, persistenceMode: .deferred)
+        clock.advance(seconds: 8)
+        try await handler.handle(.pauseSession, persistenceMode: .deferred)
+
+        let immediateState = handler.currentState(at: clock.now)
+        XCTAssertEqual(immediateState.timerStatus, .paused)
+        XCTAssertEqual(immediateState.activeSide, .left)
+        XCTAssertEqual(immediateState.leftElapsed, 8, accuracy: 0.001)
+
+        let persistedBeforeFlush = try await repository.fetchAll()
+        XCTAssertTrue(persistedBeforeFlush.isEmpty)
+
+        await handler.flushPendingPersistence()
+
+        let persistedAfterFlush = try await repository.fetchAll()
+        let persisted = try XCTUnwrap(persistedAfterFlush.first)
+        XCTAssertEqual(persisted.status, .paused)
+        XCTAssertEqual(persisted.leftDuration, 8, accuracy: 0.001)
+    }
+
     func testHandleURLParsesRouterDeepLinkAndExecutesAction() async throws {
         let clock = QuickActionTestClock(start: Date(timeIntervalSince1970: 95_000))
         let engine = SessionTimerEngine(now: { clock.now })

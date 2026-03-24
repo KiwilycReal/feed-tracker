@@ -405,10 +405,12 @@ public final class SessionTimerEngine {
     }
 
     private func activeSide(for state: SessionTimerState) -> FeedingSide? {
-        if case .running(let side) = state {
+        switch state {
+        case .running(let side), .paused(let side):
             return side
+        case .idle, .stopped, .ended:
+            return nil
         }
-        return nil
     }
 
     private func accumulateRunningInterval(until date: Date) {
