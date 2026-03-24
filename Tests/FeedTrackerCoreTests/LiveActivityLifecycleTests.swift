@@ -145,6 +145,28 @@ final class LiveActivityLifecycleTests: XCTestCase {
 
         let later = now.addingTimeInterval(30)
         XCTAssertEqual(state.projectedTotalElapsed(at: later), 95, accuracy: 0.001)
+        XCTAssertEqual(state.projectedActiveSideElapsed(at: later), 85, accuracy: 0.001)
+    }
+
+    func testPausedSnapshotPreservesLastActiveSideForLiveActivityLayout() throws {
+        let clock = LiveActivityTestClock(start: Date(timeIntervalSince1970: 141_000))
+        let engine = SessionTimerEngine(now: { clock.now })
+
+        try engine.start(.right)
+        clock.advance(seconds: 18)
+        try engine.pause()
+
+        let snapshot = engine.snapshot(at: clock.now)
+        XCTAssertEqual(snapshot.activeSide, .right)
+
+        let state = FeedTrackerLiveActivityContentState(
+            state: LiveActivityState(snapshot: snapshot),
+            capturedAt: clock.now
+        )
+
+        XCTAssertEqual(state.activeSideRawValue, FeedingSide.right.rawValue)
+        XCTAssertEqual(state.projectedActiveSideElapsed(at: clock.now.addingTimeInterval(45)), 18, accuracy: 0.001)
+        XCTAssertEqual(state.projectedTotalElapsed(at: clock.now.addingTimeInterval(45)), 18, accuracy: 0.001)
     }
 
     func testContentStateDecodesLegacyPayloadWithoutRenderVersion() throws {

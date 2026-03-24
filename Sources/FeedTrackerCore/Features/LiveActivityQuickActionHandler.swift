@@ -18,6 +18,11 @@ public enum LiveActivityQuickActionError: Error, Equatable, Sendable {
     case unsupportedDeepLink
 }
 
+public enum LiveActivityQuickActionPersistenceMode: String, Equatable, Sendable {
+    case immediate
+    case deferred
+}
+
 @MainActor
 public final class LiveActivityQuickActionHandler {
     private let engine: SessionTimerEngine
@@ -26,6 +31,7 @@ public final class LiveActivityQuickActionHandler {
     private let diagnostics: (any DiagnosticsLogging)?
 
     private var isActionInFlight = false
+    private var pendingPersistenceTask: Task<Void, Never>?
 
     public init(
         engine: SessionTimerEngine,
@@ -40,7 +46,11 @@ public final class LiveActivityQuickActionHandler {
     }
 
     @discardableResult
-    public func handle(_ action: LiveActivityQuickAction, note: String? = nil) async throws -> FeedingSession? {
+    public func handle(
+        _ action: LiveActivityQuickAction,
+        note: String? = nil,
+        persistenceMode: LiveActivityQuickActionPersistenceMode = .immediate
+    ) async throws -> FeedingSession? {
         guard isActionInFlight == false else {
             diagnostics?.record(
                 category: "live_activity",
@@ -54,13 +64,18 @@ public final class LiveActivityQuickActionHandler {
         isActionInFlight = true
         defer { isActionInFlight = false }
 
+        let mutationStartedAt = DispatchTime.now().uptimeNanoseconds
+
         do {
             switch action {
             case .switchSide:
                 let didMutate = try handleSwitchSide()
-                if didMutate {
-                    try await persistCurrentSessionState(action: action)
-                }
+                try await finalizeMutation(
+                    action: action,
+                    didMutate: didMutate,
+                    persistenceMode: persistenceMode,
+                    mutationStartedAt: mutationStartedAt
+                )
                 diagnostics?.record(
                     category: "live_activity",
                     action: "switch_side",
@@ -71,9 +86,12 @@ public final class LiveActivityQuickActionHandler {
 
             case .pauseSession:
                 let didMutate = try handlePause()
-                if didMutate {
-                    try await persistCurrentSessionState(action: action)
-                }
+                try await finalizeMutation(
+                    action: action,
+                    didMutate: didMutate,
+                    persistenceMode: persistenceMode,
+                    mutationStartedAt: mutationStartedAt
+                )
                 diagnostics?.record(
                     category: "live_activity",
                     action: "pause_session",
@@ -83,11 +101,21 @@ public final class LiveActivityQuickActionHandler {
                 return nil
 
             case .terminateSession:
-                return try await handleTerminate(note: note)
+                return try await handleTerminate(
+                    note: note,
+                    persistenceMode: persistenceMode,
+                    mutationStartedAt: mutationStartedAt,
+                    action: action
+                )
 
             case .startLeft:
-                try startOrSwitch(to: .left)
-                try await persistCurrentSessionState(action: action)
+                let didMutate = try startOrSwitch(to: .left)
+                try await finalizeMutation(
+                    action: action,
+                    didMutate: didMutate,
+                    persistenceMode: persistenceMode,
+                    mutationStartedAt: mutationStartedAt
+                )
                 diagnostics?.record(
                     category: "live_activity",
                     action: "start_left",
@@ -97,8 +125,13 @@ public final class LiveActivityQuickActionHandler {
                 return nil
 
             case .startRight:
-                try startOrSwitch(to: .right)
-                try await persistCurrentSessionState(action: action)
+                let didMutate = try startOrSwitch(to: .right)
+                try await finalizeMutation(
+                    action: action,
+                    didMutate: didMutate,
+                    persistenceMode: persistenceMode,
+                    mutationStartedAt: mutationStartedAt
+                )
                 diagnostics?.record(
                     category: "live_activity",
                     action: "start_right",
@@ -108,7 +141,12 @@ public final class LiveActivityQuickActionHandler {
                 return nil
 
             case .endSession:
-                return try await handleTerminate(note: note)
+                return try await handleTerminate(
+                    note: note,
+                    persistenceMode: persistenceMode,
+                    mutationStartedAt: mutationStartedAt,
+                    action: action
+                )
             }
         } catch {
             diagnostics?.recordError(
@@ -122,7 +160,11 @@ public final class LiveActivityQuickActionHandler {
     }
 
     @discardableResult
-    public func handle(url: URL, note: String? = nil) async throws -> FeedingSession? {
+    public func handle(
+        url: URL,
+        note: String? = nil,
+        persistenceMode: LiveActivityQuickActionPersistenceMode = .immediate
+    ) async throws -> FeedingSession? {
         guard let action = router.action(from: url) else {
             diagnostics?.recordError(
                 context: "live_activity.handle_url",
@@ -133,11 +175,19 @@ public final class LiveActivityQuickActionHandler {
             throw LiveActivityQuickActionError.unsupportedDeepLink
         }
 
-        return try await handle(action, note: note)
+        return try await handle(action, note: note, persistenceMode: persistenceMode)
     }
 
     public func currentState(at date: Date? = nil) -> LiveActivityState {
         LiveActivityState(snapshot: engine.snapshot(at: date))
+    }
+
+    public func flushPendingPersistence() async {
+        await pendingPersistenceTask?.value
+    }
+
+    public func pendingPersistenceDrainer() -> Task<Void, Never>? {
+        pendingPersistenceTask
     }
 
     private func handleSwitchSide() throws -> Bool {
@@ -195,7 +245,12 @@ public final class LiveActivityQuickActionHandler {
     }
 
     @discardableResult
-    private func handleTerminate(note: String?) async throws -> FeedingSession? {
+    private func handleTerminate(
+        note: String?,
+        persistenceMode: LiveActivityQuickActionPersistenceMode,
+        mutationStartedAt: UInt64,
+        action: LiveActivityQuickAction
+    ) async throws -> FeedingSession? {
         let state = engine.snapshot().state
         guard state != .idle, state != .ended else {
             diagnostics?.record(
@@ -208,7 +263,16 @@ public final class LiveActivityQuickActionHandler {
         }
 
         let session = try engine.endSession(note: note)
-        try await repository.upsert(session)
+        recordMutationLatency(
+            action: action,
+            didMutate: true,
+            persistenceMode: persistenceMode,
+            mutationStartedAt: mutationStartedAt
+        )
+        schedulePersistence(session: session, action: action)
+        if persistenceMode == .immediate {
+            await flushPendingPersistence()
+        }
         diagnostics?.record(
             category: "live_activity",
             action: "terminate_session",
@@ -218,41 +282,112 @@ public final class LiveActivityQuickActionHandler {
         return session
     }
 
-    private func startOrSwitch(to requestedSide: FeedingSide) throws {
+    private func startOrSwitch(to requestedSide: FeedingSide) throws -> Bool {
         let state = engine.snapshot().state
 
         switch state {
         case .idle, .stopped:
             try engine.start(requestedSide)
+            return true
 
         case .running(let activeSide):
-            guard activeSide != requestedSide else { return }
+            guard activeSide != requestedSide else {
+                return false
+            }
             try engine.switch(to: requestedSide)
+            return true
 
         case .paused(let pausedSide):
             try engine.resume()
-            guard pausedSide != requestedSide else { return }
+            guard pausedSide != requestedSide else {
+                return true
+            }
             try engine.switch(to: requestedSide)
+            return true
 
         case .ended:
             throw LiveActivityQuickActionError.cannotStartAfterSessionEnded
         }
     }
 
-    private func persistCurrentSessionState(action: LiveActivityQuickAction) async throws {
-        let snapshot = engine.snapshot()
-        guard let session = try snapshot.persistedSession() else {
+    private func finalizeMutation(
+        action: LiveActivityQuickAction,
+        didMutate: Bool,
+        persistenceMode: LiveActivityQuickActionPersistenceMode,
+        mutationStartedAt: UInt64
+    ) async throws {
+        recordMutationLatency(
+            action: action,
+            didMutate: didMutate,
+            persistenceMode: persistenceMode,
+            mutationStartedAt: mutationStartedAt
+        )
+
+        guard didMutate,
+              let session = try engine.snapshot().persistedSession() else {
             return
         }
 
-        try await repository.upsert(session)
+        schedulePersistence(session: session, action: action)
+        if persistenceMode == .immediate {
+            await flushPendingPersistence()
+        }
+    }
+
+    private func schedulePersistence(session: FeedingSession, action: LiveActivityQuickAction) {
+        let queueEnqueuedAt = DispatchTime.now().uptimeNanoseconds
+        let previousTask = pendingPersistenceTask
+        let repository = self.repository
+        let diagnostics = self.diagnostics
+
+        pendingPersistenceTask = Task(priority: .userInitiated) {
+            await previousTask?.value
+
+            let persistStartedAt = DispatchTime.now().uptimeNanoseconds
+            do {
+                try await repository.upsert(session)
+                diagnostics?.record(
+                    category: "persistence",
+                    action: "persist_active_session",
+                    metadata: [
+                        "action": action.rawValue,
+                        "sessionID": session.id.uuidString,
+                        "status": session.status.rawValue,
+                        "queueWaitMs": millisecondsString(since: queueEnqueuedAt, until: persistStartedAt),
+                        "persistMs": millisecondsString(since: persistStartedAt)
+                    ],
+                    source: "live_activity_handler"
+                )
+            } catch {
+                diagnostics?.recordError(
+                    context: "live_activity.persist_session",
+                    message: error.localizedDescription,
+                    metadata: [
+                        "action": action.rawValue,
+                        "sessionID": session.id.uuidString,
+                        "status": session.status.rawValue
+                    ],
+                    source: "live_activity_handler"
+                )
+            }
+        }
+    }
+
+    private func recordMutationLatency(
+        action: LiveActivityQuickAction,
+        didMutate: Bool,
+        persistenceMode: LiveActivityQuickActionPersistenceMode,
+        mutationStartedAt: UInt64
+    ) {
         diagnostics?.record(
-            category: "persistence",
-            action: "persist_active_session",
+            category: "live_activity_latency",
+            action: "mutation_complete",
             metadata: [
                 "action": action.rawValue,
-                "sessionID": session.id.uuidString,
-                "status": session.status.rawValue
+                "didMutate": didMutate ? "true" : "false",
+                "persistenceMode": persistenceMode.rawValue,
+                "mutationMs": millisecondsString(since: mutationStartedAt),
+                "state": stateLabel(engine.snapshot().state)
             ],
             source: "live_activity_handler"
         )
@@ -272,4 +407,10 @@ public final class LiveActivityQuickActionHandler {
             return "ended"
         }
     }
+}
+
+private func millisecondsString(since start: UInt64, until end: UInt64? = nil) -> String {
+    let finish = end ?? DispatchTime.now().uptimeNanoseconds
+    let duration = Double(finish &- start) / 1_000_000
+    return String(format: "%.1f", duration)
 }
