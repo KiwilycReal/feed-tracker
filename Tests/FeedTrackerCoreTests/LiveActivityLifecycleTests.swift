@@ -237,9 +237,12 @@ final class LiveActivityLifecycleTests: XCTestCase {
         )
 
         XCTAssertEqual(state.capturedAt.timeIntervalSince1970, 141_100.82, accuracy: 0.001)
-        XCTAssertEqual(state.leftElapsed, 12.82, accuracy: 0.001)
-        XCTAssertEqual(state.rightElapsed, 5.31, accuracy: 0.001)
-        XCTAssertEqual(state.totalElapsed, 18.13, accuracy: 0.001)
+        XCTAssertEqual(state.leftElapsed, 13, accuracy: 0.001)
+        XCTAssertEqual(state.rightElapsed, 5, accuracy: 0.001)
+        XCTAssertEqual(state.totalElapsed, 18, accuracy: 0.001)
+        XCTAssertEqual(state.anchorDate(for: .left)?.timeIntervalSince1970 ?? -1, 141_087.82, accuracy: 0.001)
+        XCTAssertNil(state.anchorDate(for: .right))
+        XCTAssertEqual(state.totalAnchorDate?.timeIntervalSince1970 ?? -1, 141_082.82, accuracy: 0.001)
         XCTAssertEqual(state.projectedActiveSideElapsed(at: Date(timeIntervalSince1970: 141_103)), 15, accuracy: 0.001)
         XCTAssertEqual(state.projectedTotalElapsed(at: Date(timeIntervalSince1970: 141_103)), 20, accuracy: 0.001)
     }

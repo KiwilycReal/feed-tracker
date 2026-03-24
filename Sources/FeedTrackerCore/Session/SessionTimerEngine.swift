@@ -23,6 +23,7 @@ public struct SessionTimerSnapshot: Equatable, Sendable {
     public let totalElapsed: TimeInterval
     public let startedAt: Date?
     public let endedAt: Date?
+    public let capturedAt: Date
 
     public init(
         sessionID: UUID? = nil,
@@ -32,7 +33,8 @@ public struct SessionTimerSnapshot: Equatable, Sendable {
         rightElapsed: TimeInterval,
         totalElapsed: TimeInterval,
         startedAt: Date?,
-        endedAt: Date?
+        endedAt: Date?,
+        capturedAt: Date = Date()
     ) {
         self.sessionID = sessionID
         self.state = state
@@ -42,6 +44,7 @@ public struct SessionTimerSnapshot: Equatable, Sendable {
         self.totalElapsed = totalElapsed
         self.startedAt = startedAt
         self.endedAt = endedAt
+        self.capturedAt = capturedAt
     }
 }
 
@@ -400,7 +403,8 @@ public final class SessionTimerEngine {
             rightElapsed: rightElapsed,
             totalElapsed: leftElapsed + rightElapsed,
             startedAt: startedAt,
-            endedAt: endedAt
+            endedAt: endedAt,
+            capturedAt: now
         )
     }
 

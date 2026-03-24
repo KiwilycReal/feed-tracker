@@ -27,9 +27,9 @@ final class SessionTimerDisplayProjectionTests: XCTestCase {
         let values = SessionTimerDisplayProjection.values(
             state: LiveActivityState(
                 activeSide: .left,
-                leftElapsed: 12.6,
-                rightElapsed: 4.2,
-                totalElapsed: 16.8,
+                leftElapsed: 13,
+                rightElapsed: 4,
+                totalElapsed: 17,
                 startedAt: capturedAt.addingTimeInterval(-16.8),
                 endedAt: nil,
                 timerStatus: .paused
@@ -44,25 +44,36 @@ final class SessionTimerDisplayProjectionTests: XCTestCase {
         XCTAssertEqual(values.totalElapsed, 17, accuracy: 0.001)
     }
 
-    func testProjectedValuesAdvanceActiveAndTotalTogetherFromAppAuthoredBaseline() {
+    func testProjectedValuesAdvanceOnlyOnWholeSecondBoundariesFromCapturedBaseline() {
         let capturedAt = Date(timeIntervalSince1970: 3_000.10)
-        let values = SessionTimerDisplayProjection.values(
-            state: LiveActivityState(
-                activeSide: .right,
-                leftElapsed: 3.2,
-                rightElapsed: 11.6,
-                totalElapsed: 14.8,
-                startedAt: capturedAt.addingTimeInterval(-14.8),
-                endedAt: nil,
-                timerStatus: .running
-            ),
+        let baselineState = LiveActivityState(
+            activeSide: .right,
+            leftElapsed: 3,
+            rightElapsed: 12,
+            totalElapsed: 15,
+            startedAt: capturedAt.addingTimeInterval(-14.8),
+            endedAt: nil,
+            timerStatus: .running
+        )
+
+        let beforeBoundary = SessionTimerDisplayProjection.values(
+            state: baselineState,
             capturedAt: capturedAt,
             now: capturedAt.addingTimeInterval(0.95)
         )
+        XCTAssertEqual(beforeBoundary.leftElapsed, 3, accuracy: 0.001)
+        XCTAssertEqual(beforeBoundary.rightElapsed, 12, accuracy: 0.001)
+        XCTAssertEqual(beforeBoundary.activeSideElapsed, 12, accuracy: 0.001)
+        XCTAssertEqual(beforeBoundary.totalElapsed, 15, accuracy: 0.001)
 
-        XCTAssertEqual(values.leftElapsed, 3, accuracy: 0.001)
-        XCTAssertEqual(values.rightElapsed, 13, accuracy: 0.001)
-        XCTAssertEqual(values.activeSideElapsed, 13, accuracy: 0.001)
-        XCTAssertEqual(values.totalElapsed, 16, accuracy: 0.001)
+        let afterBoundary = SessionTimerDisplayProjection.values(
+            state: baselineState,
+            capturedAt: capturedAt,
+            now: capturedAt.addingTimeInterval(1.05)
+        )
+        XCTAssertEqual(afterBoundary.leftElapsed, 3, accuracy: 0.001)
+        XCTAssertEqual(afterBoundary.rightElapsed, 13, accuracy: 0.001)
+        XCTAssertEqual(afterBoundary.activeSideElapsed, 13, accuracy: 0.001)
+        XCTAssertEqual(afterBoundary.totalElapsed, 16, accuracy: 0.001)
     }
 }

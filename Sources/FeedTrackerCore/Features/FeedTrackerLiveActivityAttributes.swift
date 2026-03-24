@@ -49,10 +49,13 @@ public struct FeedTrackerLiveActivityContentState: Codable, Hashable, Sendable {
         capturedAt: Date = Date(),
         renderVersion: UInt64 = 0
     ) {
+        let displayedLeftElapsed = SessionTimerDisplayProjection.displayedWholeSeconds(state.leftElapsed)
+        let displayedRightElapsed = SessionTimerDisplayProjection.displayedWholeSeconds(state.rightElapsed)
+
         self.activeSideRawValue = state.activeSide?.rawValue
-        self.leftElapsed = max(0, state.leftElapsed)
-        self.rightElapsed = max(0, state.rightElapsed)
-        self.totalElapsed = max(0, state.totalElapsed)
+        self.leftElapsed = displayedLeftElapsed
+        self.rightElapsed = displayedRightElapsed
+        self.totalElapsed = displayedLeftElapsed + displayedRightElapsed
         self.timerStatusRawValue = state.timerStatus.rawValue
         self.capturedAt = capturedAt
         self.renderVersion = renderVersion
@@ -109,6 +112,29 @@ public struct FeedTrackerLiveActivityContentState: Codable, Hashable, Sendable {
             totalElapsed: projection.totalElapsed,
             timerStatus: LiveActivityTimerStatus(rawValue: timerStatusRawValue) ?? .idle
         )
+    }
+
+    public func anchorDate(for side: FeedingSide) -> Date? {
+        guard (LiveActivityTimerStatus(rawValue: timerStatusRawValue) ?? .idle) == .running else {
+            return nil
+        }
+
+        switch side {
+        case .left where activeSideRawValue == FeedingSide.left.rawValue:
+            return capturedAt.addingTimeInterval(-max(0, leftElapsed))
+        case .right where activeSideRawValue == FeedingSide.right.rawValue:
+            return capturedAt.addingTimeInterval(-max(0, rightElapsed))
+        default:
+            return nil
+        }
+    }
+
+    public var totalAnchorDate: Date? {
+        guard (LiveActivityTimerStatus(rawValue: timerStatusRawValue) ?? .idle) == .running else {
+            return nil
+        }
+
+        return capturedAt.addingTimeInterval(-max(0, totalElapsed))
     }
 
     private func projectedDisplayValues(at now: Date) -> SessionTimerDisplayValues {
