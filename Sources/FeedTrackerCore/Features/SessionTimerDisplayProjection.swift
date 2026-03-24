@@ -67,32 +67,41 @@ public enum SessionTimerDisplayProjection {
     }
 
     private static func values(input: ProjectionInput) -> SessionTimerDisplayValues {
+        let baselineLeftElapsed: TimeInterval
+        let baselineRightElapsed: TimeInterval
+
+        if input.capturedAt == nil {
+            baselineLeftElapsed = displayedWholeSeconds(input.leftElapsed)
+            baselineRightElapsed = displayedWholeSeconds(input.rightElapsed)
+        } else {
+            baselineLeftElapsed = max(0, input.leftElapsed)
+            baselineRightElapsed = max(0, input.rightElapsed)
+        }
+
         let projectedElapsedDelta: TimeInterval
         if input.timerStatus == .running,
            let capturedAt = input.capturedAt,
            let now = input.now {
-            projectedElapsedDelta = max(0, now.timeIntervalSince(capturedAt))
+            projectedElapsedDelta = max(0, TimeInterval(Int(now.timeIntervalSince(capturedAt))))
         } else {
             projectedElapsedDelta = 0
         }
 
-        let projectedLeftRaw: TimeInterval
-        let projectedRightRaw: TimeInterval
+        let displayedLeftElapsed: TimeInterval
+        let displayedRightElapsed: TimeInterval
 
         switch input.activeSide {
         case .left where input.timerStatus == .running:
-            projectedLeftRaw = input.leftElapsed + projectedElapsedDelta
-            projectedRightRaw = input.rightElapsed
+            displayedLeftElapsed = baselineLeftElapsed + projectedElapsedDelta
+            displayedRightElapsed = baselineRightElapsed
         case .right where input.timerStatus == .running:
-            projectedLeftRaw = input.leftElapsed
-            projectedRightRaw = input.rightElapsed + projectedElapsedDelta
+            displayedLeftElapsed = baselineLeftElapsed
+            displayedRightElapsed = baselineRightElapsed + projectedElapsedDelta
         default:
-            projectedLeftRaw = input.leftElapsed
-            projectedRightRaw = input.rightElapsed
+            displayedLeftElapsed = baselineLeftElapsed
+            displayedRightElapsed = baselineRightElapsed
         }
 
-        let displayedLeftElapsed = displayedWholeSeconds(projectedLeftRaw)
-        let displayedRightElapsed = displayedWholeSeconds(projectedRightRaw)
         let displayedTotalElapsed = displayedLeftElapsed + displayedRightElapsed
 
         let displayedActiveElapsed: TimeInterval

@@ -5,11 +5,9 @@ import SwiftUI
 public struct ActiveSessionView: View {
     @StateObject private var viewModel: ActiveSessionViewModel
     @State private var actionErrorMessage: String?
-    private let refreshEvery: TimeInterval
 
-    public init(viewModel: @autoclosure @escaping () -> ActiveSessionViewModel, refreshEvery: TimeInterval = 1) {
+    public init(viewModel: @autoclosure @escaping () -> ActiveSessionViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel())
-        self.refreshEvery = refreshEvery
     }
 
     public var body: some View {
@@ -22,11 +20,6 @@ public struct ActiveSessionView: View {
             .padding(16)
         }
         .background(FeedTrackerPalette.pageBackground.ignoresSafeArea())
-        .onReceive(
-            Timer.publish(every: refreshEvery, on: .main, in: .common).autoconnect()
-        ) { _ in
-            viewModel.refresh()
-        }
         .alert("Action failed", isPresented: actionErrorBinding) {
             Button("OK", role: .cancel) {
                 actionErrorMessage = nil
@@ -61,10 +54,12 @@ public struct ActiveSessionView: View {
                 .font(.headline)
                 .foregroundStyle(FeedTrackerPalette.primaryText)
 
-            VStack(spacing: 8) {
-                metricRow(title: "Left", value: SessionPresentation.durationText(viewModel.displayState.displayedLeftElapsed), tint: FeedTrackerPalette.leftSide)
-                metricRow(title: "Right", value: SessionPresentation.durationText(viewModel.displayState.displayedRightElapsed), tint: FeedTrackerPalette.rightSide)
-                metricRow(title: "Total", value: SessionPresentation.durationText(viewModel.displayState.displayedTotalElapsed), tint: FeedTrackerPalette.accent)
+            if isRunning {
+                TimelineView(.periodic(from: viewModel.displayState.capturedAt, by: 1)) { timeline in
+                    metricRows(for: viewModel.displayState.projectedDisplay(at: timeline.date))
+                }
+            } else {
+                metricRows(for: viewModel.displayState.projectedDisplay(at: viewModel.displayState.capturedAt))
             }
         }
         .feedTrackerCardStyle()
@@ -191,6 +186,15 @@ public struct ActiveSessionView: View {
                 }
             }
         )
+    }
+
+    @ViewBuilder
+    private func metricRows(for displayValues: SessionTimerDisplayValues) -> some View {
+        VStack(spacing: 8) {
+            metricRow(title: "Left", value: SessionPresentation.durationText(displayValues.leftElapsed), tint: FeedTrackerPalette.leftSide)
+            metricRow(title: "Right", value: SessionPresentation.durationText(displayValues.rightElapsed), tint: FeedTrackerPalette.rightSide)
+            metricRow(title: "Total", value: SessionPresentation.durationText(displayValues.totalElapsed), tint: FeedTrackerPalette.accent)
+        }
     }
 
     private func metricRow(title: String, value: String, tint: Color) -> some View {

@@ -17,11 +17,17 @@
 1. Launch app and open active session screen.
 2. Trigger quick action **Start Left** from Live Activity / Dynamic Island.
    - Expected: timer state becomes running, active side is left.
-3. Wait ~10 seconds, then trigger quick action **Start Right**.
+3. Keep the app foregrounded for at least 20 seconds.
+   - Expected: the in-app timer advances continuously with no freeze-then-jump behavior.
+4. Background the app while the Live Activity remains visible on Lock Screen / Dynamic Island for at least 20 seconds.
+   - Expected: the Live Activity timer continues advancing smoothly without freezing.
+5. Return to the app.
+   - Expected: app and Live Activity totals remain visually aligned under normal observation.
+6. Trigger quick action **Start Right** from Live Activity / Dynamic Island.
    - Expected: side switches to right, left elapsed remains accumulated, total keeps increasing.
-4. Wait ~10 seconds, then trigger quick action **End Session**.
+7. Wait ~10 seconds, then trigger quick action **End Session**.
    - Expected: session ends and writes one completed record to history.
-5. Open history list.
+8. Open history list.
    - Expected: latest record has non-zero total duration and reflects the final side durations.
 
 ## Optional Simulator Helper

@@ -160,41 +160,31 @@ struct FeedTrackerLiveActivityWidget: Widget {
     }
 
     private func compactLeadingView(for state: FeedTrackerLiveActivityContentState) -> some View {
-        TimelineView(.periodic(from: state.capturedAt, by: 1)) { timeline in
-            let projection = state.projectedDisplay(at: timeline.date)
-
-            HStack(spacing: 3) {
-                Text(compactSideBadge(for: state.activeSideRawValue))
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.84))
-                Text(Self.formattedCompactDuration(projection.activeSideElapsed))
-                    .font(.caption2.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-            }
-            .padding(.leading, 6)
-            .padding(.trailing, 3)
+        HStack(spacing: 3) {
+            Text(compactSideBadge(for: state.activeSideRawValue))
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.white.opacity(0.84))
+            activeElapsedText(for: state, font: .caption2.monospacedDigit().weight(.semibold), compact: true)
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
         }
+        .padding(.leading, 6)
+        .padding(.trailing, 3)
     }
 
     private func compactTrailingView(for state: FeedTrackerLiveActivityContentState) -> some View {
-        TimelineView(.periodic(from: state.capturedAt, by: 1)) { timeline in
-            let projection = state.projectedDisplay(at: timeline.date)
-
-            HStack(spacing: 3) {
-                Text(Self.formattedCompactDuration(projection.totalElapsed))
-                    .font(.caption2.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(totalTimerColor)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                Image(systemName: statusIcon(for: state.timerStatusRawValue))
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.82))
-            }
-            .padding(.leading, 3)
-            .padding(.trailing, 6)
+        HStack(spacing: 3) {
+            totalElapsedText(for: state, font: .caption2.monospacedDigit().weight(.semibold), compact: true)
+                .foregroundStyle(totalTimerColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+            Image(systemName: statusIcon(for: state.timerStatusRawValue))
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.white.opacity(0.82))
         }
+        .padding(.leading, 3)
+        .padding(.trailing, 6)
     }
 
     private func minimalView(for state: FeedTrackerLiveActivityContentState) -> some View {
@@ -211,33 +201,65 @@ struct FeedTrackerLiveActivityWidget: Widget {
         panelHeight: CGFloat,
         rowSpacing: CGFloat
     ) -> some View {
-        TimelineView(.periodic(from: state.capturedAt, by: 1)) { timeline in
-            let projection = state.projectedDisplay(at: timeline.date)
-            let pauseControl = pauseControlMetadata(for: state.timerStatusRawValue)
+        let pauseControl = pauseControlMetadata(for: state.timerStatusRawValue)
 
-            HStack(spacing: rowSpacing) {
-                timerPanel(title: "Active", accent: .white, isLeading: true, height: panelHeight) {
-                    Text(Self.formattedDuration(projection.activeSideElapsed))
-                        .font(activeFont)
-                        .foregroundStyle(.white)
-                }
-
-                intentCircleActionButton(
-                    title: pauseControl.title,
-                    systemImage: pauseControl.systemImage,
-                    tint: Color.white.opacity(0.88),
-                    backgroundOpacity: 0.18,
-                    size: pauseButtonSize,
-                    action: .togglePause,
-                    sessionID: sessionID
-                )
-
-                timerPanel(title: "Total", accent: totalTimerColor, isLeading: false, height: panelHeight) {
-                    Text(Self.formattedDuration(projection.totalElapsed))
-                        .font(totalFont)
-                        .foregroundStyle(totalTimerColor)
-                }
+        return HStack(spacing: rowSpacing) {
+            timerPanel(title: "Active", accent: .white, isLeading: true, height: panelHeight) {
+                activeElapsedText(for: state, font: activeFont, compact: false)
+                    .foregroundStyle(.white)
             }
+
+            intentCircleActionButton(
+                title: pauseControl.title,
+                systemImage: pauseControl.systemImage,
+                tint: Color.white.opacity(0.88),
+                backgroundOpacity: 0.18,
+                size: pauseButtonSize,
+                action: .togglePause,
+                sessionID: sessionID
+            )
+
+            timerPanel(title: "Total", accent: totalTimerColor, isLeading: false, height: panelHeight) {
+                totalElapsedText(for: state, font: totalFont, compact: false)
+                    .foregroundStyle(totalTimerColor)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func activeElapsedText(for state: FeedTrackerLiveActivityContentState, font: Font, compact: Bool) -> some View {
+        let activeSide = FeedingSide(rawValue: state.activeSideRawValue ?? "")
+        let staticElapsed = activeSide == .right ? state.rightElapsed : state.leftElapsed
+        let anchorDate = activeSide.flatMap { state.anchorDate(for: $0) }
+
+        elapsedText(
+            anchorDate: anchorDate,
+            staticElapsed: staticElapsed,
+            font: font,
+            compact: compact
+        )
+    }
+
+    @ViewBuilder
+    private func totalElapsedText(for state: FeedTrackerLiveActivityContentState, font: Font, compact: Bool) -> some View {
+        elapsedText(
+            anchorDate: state.totalAnchorDate,
+            staticElapsed: state.totalElapsed,
+            font: font,
+            compact: compact
+        )
+    }
+
+    @ViewBuilder
+    private func elapsedText(anchorDate: Date?, staticElapsed: TimeInterval, font: Font, compact: Bool) -> some View {
+        if let anchorDate {
+            Text(anchorDate, style: .timer)
+                .font(font)
+                .monospacedDigit()
+        } else {
+            Text(compact ? Self.formattedCompactDuration(staticElapsed) : Self.formattedDuration(staticElapsed))
+                .font(font)
+                .monospacedDigit()
         }
     }
 

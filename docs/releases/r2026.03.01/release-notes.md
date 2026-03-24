@@ -31,3 +31,4 @@
 ## Notes
 - This release contains no schema-breaking migration change.
 - Existing diagnostics export and active-session recovery remain enabled.
+- HF11 follow-up architecture note: `docs/releases/r2026.03.01/hf11-anchor-timer-architecture.md`

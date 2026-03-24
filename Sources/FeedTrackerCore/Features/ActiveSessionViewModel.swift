@@ -10,6 +10,7 @@ public struct ActiveSessionDisplayState: Equatable, Sendable {
     public let displayedRightElapsed: TimeInterval
     public let displayedTotalElapsed: TimeInterval
     public let state: SessionTimerState
+    public let capturedAt: Date
 
     public init(snapshot: SessionTimerSnapshot) {
         let displayValues = SessionTimerDisplayProjection.values(snapshot: snapshot)
@@ -22,6 +23,23 @@ public struct ActiveSessionDisplayState: Equatable, Sendable {
         self.displayedRightElapsed = displayValues.rightElapsed
         self.displayedTotalElapsed = displayValues.totalElapsed
         self.state = snapshot.state
+        self.capturedAt = snapshot.capturedAt
+    }
+
+    public func projectedDisplay(at date: Date) -> SessionTimerDisplayValues {
+        SessionTimerDisplayProjection.values(
+            state: LiveActivityState(
+                activeSide: activeSide,
+                leftElapsed: displayedLeftElapsed,
+                rightElapsed: displayedRightElapsed,
+                totalElapsed: displayedTotalElapsed,
+                startedAt: nil,
+                endedAt: nil,
+                timerStatus: LiveActivityTimerStatus(state: state)
+            ),
+            capturedAt: capturedAt,
+            now: date
+        )
     }
 
     public static let idle = ActiveSessionDisplayState(
@@ -32,7 +50,8 @@ public struct ActiveSessionDisplayState: Equatable, Sendable {
             rightElapsed: 0,
             totalElapsed: 0,
             startedAt: nil,
-            endedAt: nil
+            endedAt: nil,
+            capturedAt: Date(timeIntervalSince1970: 0)
         )
     )
 }

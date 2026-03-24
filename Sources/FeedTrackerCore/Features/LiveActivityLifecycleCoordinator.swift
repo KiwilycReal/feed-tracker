@@ -31,7 +31,6 @@ public final class NoopLiveActivityController: LiveActivityControlling {
 @MainActor
 public final class LiveActivityLifecycleCoordinator: LiveActivityLifecycleCoordinating {
     private let controller: any LiveActivityControlling
-    private let now: @Sendable () -> Date
     private let nextRenderVersion: @Sendable () -> UInt64
     private let diagnostics: (any DiagnosticsLogging)?
 
@@ -39,12 +38,11 @@ public final class LiveActivityLifecycleCoordinator: LiveActivityLifecycleCoordi
 
     public init(
         controller: any LiveActivityControlling,
-        now: @escaping @Sendable () -> Date = { Date() },
+        now _: @escaping @Sendable () -> Date = { Date() },
         nextRenderVersion: @escaping @Sendable () -> UInt64 = { FeedTrackerSharedStorage.nextLiveActivityRenderVersion() },
         diagnostics: (any DiagnosticsLogging)? = nil
     ) {
         self.controller = controller
-        self.now = now
         self.nextRenderVersion = nextRenderVersion
         self.diagnostics = diagnostics
     }
@@ -75,7 +73,11 @@ public final class LiveActivityLifecycleCoordinator: LiveActivityLifecycleCoordi
                         "source": source,
                         "sessionID": sessionID.uuidString,
                         "timerStatus": contentState.timerStatusRawValue,
-                        "renderVersion": "\(contentState.renderVersion)"
+                        "renderVersion": "\(contentState.renderVersion)",
+                        "capturedAt": contentState.capturedAt.ISO8601Format(),
+                        "displayedLeftElapsed": "\(Int(contentState.leftElapsed))",
+                        "displayedRightElapsed": "\(Int(contentState.rightElapsed))",
+                        "displayedTotalElapsed": "\(Int(contentState.totalElapsed))"
                     ],
                     source: "live_activity_coordinator"
                 )
@@ -88,7 +90,11 @@ public final class LiveActivityLifecycleCoordinator: LiveActivityLifecycleCoordi
                         "source": source,
                         "sessionID": sessionID.uuidString,
                         "timerStatus": contentState.timerStatusRawValue,
-                        "renderVersion": "\(contentState.renderVersion)"
+                        "renderVersion": "\(contentState.renderVersion)",
+                        "capturedAt": contentState.capturedAt.ISO8601Format(),
+                        "displayedLeftElapsed": "\(Int(contentState.leftElapsed))",
+                        "displayedRightElapsed": "\(Int(contentState.rightElapsed))",
+                        "displayedTotalElapsed": "\(Int(contentState.totalElapsed))"
                     ],
                     source: "live_activity_coordinator"
                 )
@@ -99,7 +105,7 @@ public final class LiveActivityLifecycleCoordinator: LiveActivityLifecycleCoordi
     private func contentState(for snapshot: SessionTimerSnapshot) -> FeedTrackerLiveActivityAttributes.ContentState {
         FeedTrackerLiveActivityAttributes.ContentState(
             state: LiveActivityState(snapshot: snapshot),
-            capturedAt: now(),
+            capturedAt: snapshot.capturedAt,
             renderVersion: nextRenderVersion()
         )
     }
