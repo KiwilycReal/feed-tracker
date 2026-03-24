@@ -197,7 +197,29 @@ final class LiveActivityLifecycleTests: XCTestCase {
         XCTAssertEqual(state.projectedTotalElapsed(at: clock.now.addingTimeInterval(45)), 18, accuracy: 0.001)
     }
 
-    func testRunningContentStateSnapsDisplayCheckpointToWholeSecondBoundary() {
+    func testPausedContentStateKeepsRoundedDisplayedSecondAfterPauseBoundary() {
+        let capturedAt = Date(timeIntervalSince1970: 141_050.6)
+        let snapshot = SessionTimerSnapshot(
+            state: .paused(side: .left),
+            activeSide: .left,
+            leftElapsed: 12.6,
+            rightElapsed: 4.2,
+            totalElapsed: 16.8,
+            startedAt: capturedAt.addingTimeInterval(-16.8),
+            endedAt: nil
+        )
+
+        let state = FeedTrackerLiveActivityContentState(
+            state: LiveActivityState(snapshot: snapshot),
+            capturedAt: capturedAt
+        )
+
+        XCTAssertEqual(state.projectedElapsed(for: .left, at: capturedAt.addingTimeInterval(10)), 13, accuracy: 0.001)
+        XCTAssertEqual(state.projectedElapsed(for: .right, at: capturedAt.addingTimeInterval(10)), 4, accuracy: 0.001)
+        XCTAssertEqual(state.projectedTotalElapsed(at: capturedAt.addingTimeInterval(10)), 17, accuracy: 0.001)
+    }
+
+    func testRunningContentStatePreservesRawBaselineAndProjectsDisplayedSecondsFromAppState() {
         let capturedAt = Date(timeIntervalSince1970: 141_100.82)
         let snapshot = SessionTimerSnapshot(
             state: .running(side: .left),
@@ -214,10 +236,10 @@ final class LiveActivityLifecycleTests: XCTestCase {
             capturedAt: capturedAt
         )
 
-        XCTAssertEqual(state.capturedAt.timeIntervalSince1970, 141_100, accuracy: 0.001)
-        XCTAssertEqual(state.leftElapsed, 12, accuracy: 0.001)
-        XCTAssertEqual(state.rightElapsed, 5, accuracy: 0.001)
-        XCTAssertEqual(state.totalElapsed, 17, accuracy: 0.001)
+        XCTAssertEqual(state.capturedAt.timeIntervalSince1970, 141_100.82, accuracy: 0.001)
+        XCTAssertEqual(state.leftElapsed, 12.82, accuracy: 0.001)
+        XCTAssertEqual(state.rightElapsed, 5.31, accuracy: 0.001)
+        XCTAssertEqual(state.totalElapsed, 18.13, accuracy: 0.001)
         XCTAssertEqual(state.projectedActiveSideElapsed(at: Date(timeIntervalSince1970: 141_103)), 15, accuracy: 0.001)
         XCTAssertEqual(state.projectedTotalElapsed(at: Date(timeIntervalSince1970: 141_103)), 20, accuracy: 0.001)
     }

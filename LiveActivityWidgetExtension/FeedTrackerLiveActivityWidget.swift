@@ -99,6 +99,7 @@ struct FeedTrackerLiveActivityWidget: Widget {
     private func expandedTopLeadingView(for state: FeedTrackerLiveActivityContentState) -> some View {
         metadataBadge(for: state)
             .padding(.top, 2)
+            .padding(.leading, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -109,6 +110,7 @@ struct FeedTrackerLiveActivityWidget: Widget {
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .trailing)
             .padding(.top, 2)
+            .padding(.trailing, 6)
     }
 
     private func expandedMiddleRow(
@@ -171,8 +173,8 @@ struct FeedTrackerLiveActivityWidget: Widget {
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
             }
-            .padding(.leading, 4)
-            .padding(.trailing, 2)
+            .padding(.leading, 6)
+            .padding(.trailing, 3)
         }
     }
 
@@ -190,8 +192,8 @@ struct FeedTrackerLiveActivityWidget: Widget {
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.white.opacity(0.82))
             }
-            .padding(.leading, 2)
-            .padding(.trailing, 4)
+            .padding(.leading, 3)
+            .padding(.trailing, 6)
         }
     }
 
@@ -346,9 +348,9 @@ struct FeedTrackerLiveActivityWidget: Widget {
     private func expandedSideLabel(for raw: String?) -> String {
         switch raw {
         case "left":
-            return "Left"
+            return "左"
         case "right":
-            return "Right"
+            return "右"
         default:
             return "--"
         }
@@ -357,9 +359,9 @@ struct FeedTrackerLiveActivityWidget: Widget {
     private func compactSideBadge(for raw: String?) -> String {
         switch raw {
         case "left":
-            return "L"
+            return "左"
         case "right":
-            return "R"
+            return "右"
         default:
             return "•"
         }

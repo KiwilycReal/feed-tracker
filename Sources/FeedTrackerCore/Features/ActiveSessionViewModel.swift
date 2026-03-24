@@ -6,13 +6,21 @@ public struct ActiveSessionDisplayState: Equatable, Sendable {
     public let leftElapsed: TimeInterval
     public let rightElapsed: TimeInterval
     public let totalElapsed: TimeInterval
+    public let displayedLeftElapsed: TimeInterval
+    public let displayedRightElapsed: TimeInterval
+    public let displayedTotalElapsed: TimeInterval
     public let state: SessionTimerState
 
     public init(snapshot: SessionTimerSnapshot) {
+        let displayValues = SessionTimerDisplayProjection.values(snapshot: snapshot)
+
         self.activeSide = snapshot.activeSide
         self.leftElapsed = snapshot.leftElapsed
         self.rightElapsed = snapshot.rightElapsed
         self.totalElapsed = snapshot.totalElapsed
+        self.displayedLeftElapsed = displayValues.leftElapsed
+        self.displayedRightElapsed = displayValues.rightElapsed
+        self.displayedTotalElapsed = displayValues.totalElapsed
         self.state = snapshot.state
     }
 
@@ -431,12 +439,14 @@ private extension ActiveSessionViewModel {
     }
 
     func liveActivitySyncToken(for snapshot: SessionTimerSnapshot) -> String {
-        [
+        let displayValues = SessionTimerDisplayProjection.values(snapshot: snapshot)
+
+        return [
             snapshot.sessionID?.uuidString ?? "none",
             sessionStateLabel(snapshot.state),
-            "\(Int(snapshot.leftElapsed.rounded(.down)))",
-            "\(Int(snapshot.rightElapsed.rounded(.down)))",
-            "\(Int(snapshot.totalElapsed.rounded(.down)))"
+            "\(Int(displayValues.leftElapsed))",
+            "\(Int(displayValues.rightElapsed))",
+            "\(Int(displayValues.totalElapsed))"
         ].joined(separator: "|")
     }
 
