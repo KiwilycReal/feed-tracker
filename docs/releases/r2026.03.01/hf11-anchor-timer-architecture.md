@@ -50,6 +50,17 @@ Live Activity lifecycle diagnostics now include:
 
 That makes future timer investigations traceable to the exact authored display checkpoint, instead of only raw lifecycle events.
 
+## External best-practice basis
+HF11 aligns the implementation with platform-native timer rendering guidance instead of relying on app-owned tick loops:
+- Apple `SwiftUI.Text.init(_:style:)` documents the system timer/date text style as the native way to render localized, continuously updating time text.
+- Apple ActivityKit guidance for Live Activities emphasizes displaying up-to-date live data on system surfaces (Dynamic Island / Lock Screen) rather than depending on fragile app-local foreground timers.
+
+Practical architectural conclusion:
+- app/business state remains the source of truth,
+- each UI surface publishes a stable authored checkpoint (`capturedAt` + displayed elapsed baselines),
+- system-rendered timer text advances from that checkpoint,
+- no surface depends on its own ad-hoc second-tick callback to stay visually correct.
+
 ## Validation evidence
 ### Automated
 - `swift test`
