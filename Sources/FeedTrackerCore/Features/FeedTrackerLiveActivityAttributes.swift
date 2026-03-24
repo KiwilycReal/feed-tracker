@@ -26,6 +26,13 @@ public struct FeedTrackerLiveActivityDisplayProjection: Equatable, Sendable {
 }
 
 public struct FeedTrackerLiveActivityContentState: Codable, Hashable, Sendable {
+    private struct DisplayCheckpoint: Sendable {
+        let capturedAt: Date
+        let leftElapsed: TimeInterval
+        let rightElapsed: TimeInterval
+        let totalElapsed: TimeInterval
+    }
+
     public var activeSideRawValue: String?
     public var leftElapsed: TimeInterval
     public var rightElapsed: TimeInterval
@@ -137,7 +144,7 @@ public struct FeedTrackerLiveActivityContentState: Codable, Hashable, Sendable {
     private static func displayCheckpoint(
         for state: LiveActivityState,
         capturedAt: Date
-    ) -> (capturedAt: Date, leftElapsed: TimeInterval, rightElapsed: TimeInterval, totalElapsed: TimeInterval) {
+    ) -> DisplayCheckpoint {
         let normalizedCapturedAt = Date(
             timeIntervalSinceReferenceDate: floor(capturedAt.timeIntervalSinceReferenceDate)
         )
@@ -145,7 +152,7 @@ public struct FeedTrackerLiveActivityContentState: Codable, Hashable, Sendable {
         let normalizedRightElapsed = max(0, floor(state.rightElapsed))
         let normalizedTotalElapsed = normalizedLeftElapsed + normalizedRightElapsed
 
-        return (
+        return DisplayCheckpoint(
             capturedAt: normalizedCapturedAt,
             leftElapsed: normalizedLeftElapsed,
             rightElapsed: normalizedRightElapsed,
