@@ -52,49 +52,24 @@ struct FeedTrackerLiveActivityWidget: Widget {
 
     @ViewBuilder
     private func lockScreenView(context: ActivityViewContext<FeedTrackerLiveActivityAttributes>) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(Color.white.opacity(0.82))
-                        .frame(width: 8, height: 8)
-                    Text(expandedSideLabel(for: context.state.activeSideRawValue))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.82))
-                        .textCase(.uppercase)
-                }
-
-                Spacer()
-
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 10) {
+                metadataBadge(for: context.state)
+                Spacer(minLength: 8)
                 liveClockView()
                     .font(.caption.monospacedDigit().weight(.semibold))
                     .foregroundStyle(.white.opacity(0.76))
             }
 
-            HStack(spacing: 12) {
-                timerPanel(title: "Active", accent: .white, isLeading: true) {
-                    activeElapsedView(for: context.state)
-                        .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
-                        .foregroundStyle(.white)
-                }
-
-                let pauseControl = pauseControlMetadata(for: context.state.timerStatusRawValue)
-                intentCircleActionButton(
-                    title: pauseControl.title,
-                    systemImage: pauseControl.systemImage,
-                    tint: Color.white.opacity(0.88),
-                    backgroundOpacity: 0.18,
-                    size: 60,
-                    action: .togglePause,
-                    sessionID: context.attributes.sessionID
-                )
-
-                timerPanel(title: "Total", accent: totalTimerColor, isLeading: false) {
-                    totalElapsedView(for: context.state)
-                        .font(.system(size: 26, weight: .bold, design: .rounded).monospacedDigit())
-                        .foregroundStyle(totalTimerColor)
-                }
-            }
+            synchronizedTimerRow(
+                for: context.state,
+                activeFont: .system(size: 30, weight: .bold, design: .rounded).monospacedDigit(),
+                totalFont: .system(size: 26, weight: .bold, design: .rounded).monospacedDigit(),
+                sessionID: context.attributes.sessionID,
+                pauseButtonSize: 58,
+                panelHeight: 68,
+                rowSpacing: 10
+            )
 
             HStack(spacing: 10) {
                 intentPillActionButton(
@@ -103,7 +78,8 @@ struct FeedTrackerLiveActivityWidget: Widget {
                     tint: .accentColor,
                     backgroundOpacity: 0.16,
                     action: .switchSide,
-                    sessionID: context.attributes.sessionID
+                    sessionID: context.attributes.sessionID,
+                    height: 38
                 )
 
                 intentPillActionButton(
@@ -112,7 +88,8 @@ struct FeedTrackerLiveActivityWidget: Widget {
                     tint: .red,
                     backgroundOpacity: 0.18,
                     action: .terminate,
-                    sessionID: context.attributes.sessionID
+                    sessionID: context.attributes.sessionID,
+                    height: 38
                 )
             }
         }
@@ -120,71 +97,48 @@ struct FeedTrackerLiveActivityWidget: Widget {
     }
 
     private func expandedTopLeadingView(for state: FeedTrackerLiveActivityContentState) -> some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(Color.white.opacity(0.82))
-                .frame(width: 8, height: 8)
-            Text(expandedSideLabel(for: state.activeSideRawValue))
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.82))
-                .textCase(.uppercase)
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .frame(height: 42, alignment: .leading)
+        metadataBadge(for: state)
+            .padding(.top, 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func expandedTopTrailingView() -> some View {
         liveClockView()
-            .font(.caption.monospacedDigit().weight(.semibold))
-            .foregroundStyle(.white.opacity(0.76))
+            .font(.caption2.monospacedDigit().weight(.semibold))
+            .foregroundStyle(.white.opacity(0.72))
             .lineLimit(1)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
-            .frame(height: 42, alignment: .trailing)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.top, 2)
     }
 
     private func expandedMiddleRow(
         context: ActivityViewContext<FeedTrackerLiveActivityAttributes>
     ) -> some View {
-        HStack(spacing: 12) {
-            timerPanel(title: "Active", accent: .white, isLeading: true) {
-                activeElapsedView(for: context.state)
-                    .font(.system(size: 29, weight: .bold, design: .rounded).monospacedDigit())
-                    .foregroundStyle(.white)
-            }
-
-            let pauseControl = pauseControlMetadata(for: context.state.timerStatusRawValue)
-            intentCircleActionButton(
-                title: pauseControl.title,
-                systemImage: pauseControl.systemImage,
-                tint: Color.white.opacity(0.88),
-                backgroundOpacity: 0.18,
-                size: 58,
-                action: .togglePause,
-                sessionID: context.attributes.sessionID
-            )
-
-            timerPanel(title: "Total", accent: totalTimerColor, isLeading: false) {
-                totalElapsedView(for: context.state)
-                    .font(.system(size: 25, weight: .bold, design: .rounded).monospacedDigit())
-                    .foregroundStyle(totalTimerColor)
-            }
-        }
+        synchronizedTimerRow(
+            for: context.state,
+            activeFont: .system(size: 27, weight: .bold, design: .rounded).monospacedDigit(),
+            totalFont: .system(size: 23, weight: .bold, design: .rounded).monospacedDigit(),
+            sessionID: context.attributes.sessionID,
+            pauseButtonSize: 52,
+            panelHeight: 60,
+            rowSpacing: 8
+        )
         .frame(maxWidth: .infinity)
-        .frame(height: 68)
+        .padding(.top, 2)
     }
 
     private func expandedBottomRow(
         context: ActivityViewContext<FeedTrackerLiveActivityAttributes>
     ) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             intentPillActionButton(
                 title: "Switch",
                 systemImage: "arrow.triangle.2.circlepath",
                 tint: .accentColor,
                 backgroundOpacity: 0.16,
                 action: .switchSide,
-                sessionID: context.attributes.sessionID
+                sessionID: context.attributes.sessionID,
+                height: 34
             )
 
             intentPillActionButton(
@@ -193,43 +147,52 @@ struct FeedTrackerLiveActivityWidget: Widget {
                 tint: .red,
                 backgroundOpacity: 0.18,
                 action: .terminate,
-                sessionID: context.attributes.sessionID
+                sessionID: context.attributes.sessionID,
+                height: 34
             )
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 42, alignment: .bottom)
         .padding(.horizontal, 2)
-        .padding(.bottom, 0)
+        .padding(.top, 2)
+        .padding(.bottom, 1)
     }
 
     private func compactLeadingView(for state: FeedTrackerLiveActivityContentState) -> some View {
-        HStack(spacing: 3) {
-            Text(compactSideBadge(for: state.activeSideRawValue))
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(.white.opacity(0.84))
-            compactActiveElapsedView(for: state)
-                .font(.caption2.monospacedDigit().weight(.semibold))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
+        TimelineView(.periodic(from: state.capturedAt, by: 1)) { timeline in
+            let projection = state.projectedDisplay(at: timeline.date)
+
+            HStack(spacing: 3) {
+                Text(compactSideBadge(for: state.activeSideRawValue))
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.84))
+                Text(Self.formattedCompactDuration(projection.activeSideElapsed))
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+            .padding(.leading, 4)
+            .padding(.trailing, 2)
         }
-        .padding(.leading, 4)
-        .padding(.trailing, 2)
     }
 
     private func compactTrailingView(for state: FeedTrackerLiveActivityContentState) -> some View {
-        HStack(spacing: 3) {
-            compactTotalElapsedView(for: state)
-                .font(.caption2.monospacedDigit().weight(.semibold))
-                .foregroundStyle(totalTimerColor)
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-            Image(systemName: statusIcon(for: state.timerStatusRawValue))
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(.white.opacity(0.82))
+        TimelineView(.periodic(from: state.capturedAt, by: 1)) { timeline in
+            let projection = state.projectedDisplay(at: timeline.date)
+
+            HStack(spacing: 3) {
+                Text(Self.formattedCompactDuration(projection.totalElapsed))
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(totalTimerColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Image(systemName: statusIcon(for: state.timerStatusRawValue))
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.82))
+            }
+            .padding(.leading, 2)
+            .padding(.trailing, 4)
         }
-        .padding(.leading, 2)
-        .padding(.trailing, 4)
     }
 
     private func minimalView(for state: FeedTrackerLiveActivityContentState) -> some View {
@@ -237,57 +200,42 @@ struct FeedTrackerLiveActivityWidget: Widget {
             .font(.caption2.weight(.bold))
     }
 
-    @ViewBuilder
-    private func totalElapsedView(for state: FeedTrackerLiveActivityContentState) -> some View {
-        let startDate = state.capturedAt.addingTimeInterval(-state.totalElapsed)
+    private func synchronizedTimerRow(
+        for state: FeedTrackerLiveActivityContentState,
+        activeFont: Font,
+        totalFont: Font,
+        sessionID: String,
+        pauseButtonSize: CGFloat,
+        panelHeight: CGFloat,
+        rowSpacing: CGFloat
+    ) -> some View {
+        TimelineView(.periodic(from: state.capturedAt, by: 1)) { timeline in
+            let projection = state.projectedDisplay(at: timeline.date)
+            let pauseControl = pauseControlMetadata(for: state.timerStatusRawValue)
 
-        if state.timerStatusRawValue == LiveActivityTimerStatus.running.rawValue {
-            Text(timerInterval: startDate...Date.distantFuture, countsDown: false)
-        } else {
-            Text(Self.formattedDuration(state.totalElapsed))
-        }
-    }
+            HStack(spacing: rowSpacing) {
+                timerPanel(title: "Active", accent: .white, isLeading: true, height: panelHeight) {
+                    Text(Self.formattedDuration(projection.activeSideElapsed))
+                        .font(activeFont)
+                        .foregroundStyle(.white)
+                }
 
-    @ViewBuilder
-    private func activeElapsedView(for state: FeedTrackerLiveActivityContentState) -> some View {
-        if let side = FeedingSide(rawValue: state.activeSideRawValue ?? "") {
-            let baseline: TimeInterval = side == .left ? state.leftElapsed : state.rightElapsed
-            let startDate = state.capturedAt.addingTimeInterval(-baseline)
+                intentCircleActionButton(
+                    title: pauseControl.title,
+                    systemImage: pauseControl.systemImage,
+                    tint: Color.white.opacity(0.88),
+                    backgroundOpacity: 0.18,
+                    size: pauseButtonSize,
+                    action: .togglePause,
+                    sessionID: sessionID
+                )
 
-            if state.timerStatusRawValue == LiveActivityTimerStatus.running.rawValue {
-                Text(timerInterval: startDate...Date.distantFuture, countsDown: false)
-            } else {
-                Text(Self.formattedDuration(baseline))
+                timerPanel(title: "Total", accent: totalTimerColor, isLeading: false, height: panelHeight) {
+                    Text(Self.formattedDuration(projection.totalElapsed))
+                        .font(totalFont)
+                        .foregroundStyle(totalTimerColor)
+                }
             }
-        } else {
-            Text("--:--")
-        }
-    }
-
-    @ViewBuilder
-    private func compactActiveElapsedView(for state: FeedTrackerLiveActivityContentState) -> some View {
-        if let side = FeedingSide(rawValue: state.activeSideRawValue ?? "") {
-            let baseline: TimeInterval = side == .left ? state.leftElapsed : state.rightElapsed
-            let startDate = state.capturedAt.addingTimeInterval(-baseline)
-
-            if state.timerStatusRawValue == LiveActivityTimerStatus.running.rawValue {
-                Text(timerInterval: startDate...Date.distantFuture, countsDown: false)
-            } else {
-                Text(Self.formattedCompactDuration(baseline))
-            }
-        } else {
-            Text("--")
-        }
-    }
-
-    @ViewBuilder
-    private func compactTotalElapsedView(for state: FeedTrackerLiveActivityContentState) -> some View {
-        let startDate = state.capturedAt.addingTimeInterval(-state.totalElapsed)
-
-        if state.timerStatusRawValue == LiveActivityTimerStatus.running.rawValue {
-            Text(timerInterval: startDate...Date.distantFuture, countsDown: false)
-        } else {
-            Text(Self.formattedCompactDuration(state.totalElapsed))
         }
     }
 
@@ -295,26 +243,47 @@ struct FeedTrackerLiveActivityWidget: Widget {
         title: String,
         accent: Color,
         isLeading: Bool,
+        height: CGFloat,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: isLeading ? .leading : .trailing, spacing: 6) {
+        VStack(alignment: isLeading ? .leading : .trailing, spacing: 5) {
             Text(title)
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(accent.opacity(0.78))
+                .foregroundStyle(accent.opacity(0.76))
                 .textCase(.uppercase)
                 .lineLimit(1)
 
             content()
                 .lineLimit(1)
-                .minimumScaleFactor(0.64)
+                .minimumScaleFactor(0.62)
         }
         .frame(maxWidth: .infinity, alignment: isLeading ? .leading : .trailing)
-        .frame(height: 68, alignment: isLeading ? .leading : .trailing)
-        .padding(.horizontal, 12)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .frame(height: height, alignment: isLeading ? .leading : .trailing)
+        .padding(.horizontal, 10)
+        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(accent.opacity(0.12), lineWidth: 1)
+        )
+    }
+
+    private func metadataBadge(for state: FeedTrackerLiveActivityContentState) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(Color.white.opacity(0.82))
+                .frame(width: 6, height: 6)
+            Text(expandedSideLabel(for: state.activeSideRawValue))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.82))
+                .textCase(.uppercase)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.white.opacity(0.08), in: Capsule())
+        .overlay(
+            Capsule()
+                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
         )
     }
 
@@ -329,7 +298,7 @@ struct FeedTrackerLiveActivityWidget: Widget {
     ) -> some View {
         Button(intent: FeedTrackerLiveActivityControlIntent(action: action, sessionID: sessionID)) {
             Image(systemName: systemImage)
-                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .font(.system(size: size * 0.34, weight: .bold, design: .rounded))
                 .foregroundStyle(tint)
                 .frame(width: size, height: size)
                 .background(tint.opacity(backgroundOpacity), in: Circle())
@@ -347,18 +316,19 @@ struct FeedTrackerLiveActivityWidget: Widget {
         tint: Color,
         backgroundOpacity: Double,
         action: FeedTrackerLiveActivityIntentAction,
-        sessionID: String
+        sessionID: String,
+        height: CGFloat
     ) -> some View {
         Button(intent: FeedTrackerLiveActivityControlIntent(action: action, sessionID: sessionID)) {
             HStack(spacing: 6) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
                 Text(title)
-                    .font(.caption.weight(.semibold))
+                    .font(.caption2.weight(.semibold))
             }
             .foregroundStyle(tint)
             .frame(maxWidth: .infinity)
-            .frame(height: 42)
+            .frame(height: height)
             .background(tint.opacity(backgroundOpacity), in: Capsule())
             .overlay(Capsule().strokeBorder(tint.opacity(0.14), lineWidth: 1))
             .contentShape(Capsule())
