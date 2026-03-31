@@ -444,29 +444,25 @@ private extension ActiveSessionViewModel {
     }
 
     func syncLiveActivity(source: String) {
-        syncLiveActivity(snapshot: engine.snapshot(), source: source)
+        syncLiveActivity(clockState: engine.clockState(), source: source)
     }
 
     func syncLiveActivity(snapshot: SessionTimerSnapshot, source: String) {
-        let syncToken = liveActivitySyncToken(for: snapshot)
+        syncLiveActivity(clockState: engine.clockState(at: snapshot.capturedAt), source: source)
+    }
+
+    func syncLiveActivity(clockState: SessionTimerClockState, source: String) {
+        let syncToken = liveActivitySyncToken(for: clockState)
         guard syncToken != lastSyncedLiveActivityToken else {
             return
         }
 
-        liveActivityCoordinator?.reconcile(snapshot: snapshot, source: source)
+        liveActivityCoordinator?.reconcile(clockState: clockState, source: source)
         lastSyncedLiveActivityToken = syncToken
     }
 
-    func liveActivitySyncToken(for snapshot: SessionTimerSnapshot) -> String {
-        let displayValues = SessionTimerDisplayProjection.values(snapshot: snapshot)
-
-        return [
-            snapshot.sessionID?.uuidString ?? "none",
-            sessionStateLabel(snapshot.state),
-            "\(Int(displayValues.leftElapsed))",
-            "\(Int(displayValues.rightElapsed))",
-            "\(Int(displayValues.totalElapsed))"
-        ].joined(separator: "|")
+    func liveActivitySyncToken(for clockState: SessionTimerClockState) -> String {
+        clockState.liveActivitySyncToken
     }
 
     func sessionStateLabel(_ state: SessionTimerState) -> String {

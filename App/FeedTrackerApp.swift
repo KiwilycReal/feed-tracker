@@ -238,7 +238,7 @@ final class FeedTrackerDependencies {
     }
 
     func reconcileLiveActivity(source: String) {
-        liveActivityCoordinator.reconcile(snapshot: engine.snapshot(), source: source)
+        liveActivityCoordinator.reconcile(clockState: engine.clockState(), source: source)
     }
 
     private func preloadEngineForAppHostedIntent(source: String) {

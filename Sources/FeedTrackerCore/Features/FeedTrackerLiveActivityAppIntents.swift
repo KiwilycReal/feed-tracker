@@ -205,7 +205,7 @@ private enum FeedTrackerLiveActivityIntentFallbackRuntime {
     }
 
     struct RenderRefresh {
-        let state: LiveActivityState
+        let clockState: SessionTimerClockState
         let renderVersion: UInt64
         let persistenceDrainer: Task<Void, Never>?
     }
@@ -230,13 +230,14 @@ private enum FeedTrackerLiveActivityIntentFallbackRuntime {
             return .skippedStaleRenderVersion
         }
 
-        let contentState = FeedTrackerLiveActivityContentState(
-            state: refresh.state,
+        let capturedAt = Date()
+        let contentState = refresh.clockState.liveActivityContentState(
+            at: capturedAt,
             renderVersion: refresh.renderVersion
         )
         let content = ActivityContent(state: contentState, staleDate: nil)
 
-        if refresh.state.timerStatus == .ended {
+        if refresh.clockState.status == .ended {
             await activity.end(content, dismissalPolicy: .immediate)
             if FeedTrackerSharedStorage.readLiveActivityDisplayTarget()?.sessionID == targetSessionID {
                 FeedTrackerSharedStorage.clearLiveActivityDisplayTarget()
@@ -244,7 +245,7 @@ private enum FeedTrackerLiveActivityIntentFallbackRuntime {
             return .endedVisibleActivity
         }
 
-        guard refresh.state.timerStatus != .idle else {
+        guard refresh.clockState.status != .idle else {
             return .skippedIdleState
         }
 
@@ -283,7 +284,7 @@ private enum FeedTrackerLiveActivityIntentFallbackRuntime {
         }
 
         return RenderRefresh(
-            state: handler.currentState(),
+            clockState: handler.currentClockState(),
             renderVersion: FeedTrackerSharedStorage.nextLiveActivityRenderVersion(),
             persistenceDrainer: handler.pendingPersistenceDrainer()
         )
