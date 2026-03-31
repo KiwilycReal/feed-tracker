@@ -98,8 +98,9 @@ struct FeedTrackerLiveActivityWidget: Widget {
 
     private func expandedTopLeadingView(for state: FeedTrackerLiveActivityContentState) -> some View {
         metadataBadge(for: state)
-            .padding(.top, 2)
-            .padding(.leading, 6)
+            .padding(.top, 8)
+            .padding(.bottom, 2)
+            .padding(.leading, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -109,8 +110,9 @@ struct FeedTrackerLiveActivityWidget: Widget {
             .foregroundStyle(.white.opacity(0.72))
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.top, 2)
-            .padding(.trailing, 6)
+            .padding(.top, 8)
+            .padding(.bottom, 2)
+            .padding(.trailing, 8)
     }
 
     private func expandedMiddleRow(
@@ -126,7 +128,7 @@ struct FeedTrackerLiveActivityWidget: Widget {
             rowSpacing: 8
         )
         .frame(maxWidth: .infinity)
-        .padding(.top, 2)
+        .padding(.top, 6)
     }
 
     private func expandedBottomRow(

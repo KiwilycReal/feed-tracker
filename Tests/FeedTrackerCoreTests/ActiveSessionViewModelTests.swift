@@ -39,7 +39,7 @@ final class ActiveSessionViewModelTests: XCTestCase {
         XCTAssertEqual(displayState.displayedTotalElapsed, 8, accuracy: 0.001)
     }
 
-    func testRefreshAlsoReconcilesLiveActivityFromAppTick() async throws {
+    func testRefreshDoesNotReconcileLiveActivityOnEveryForegroundTick() async throws {
         let clock = ViewModelTestClock(start: Date(timeIntervalSince1970: 15_000))
         let engine = SessionTimerEngine(now: { clock.now })
         let repository = InMemoryFeedingSessionRepository()
@@ -51,20 +51,22 @@ final class ActiveSessionViewModelTests: XCTestCase {
         )
 
         try viewModel.start(side: .left)
-        XCTAssertEqual(coordinator.snapshots.count, 2)
+        XCTAssertEqual(coordinator.clockStates.count, 2)
 
         clock.advance(seconds: 1)
         viewModel.refresh(at: clock.now)
-        XCTAssertEqual(coordinator.snapshots.count, 3)
-        XCTAssertEqual(coordinator.snapshots.last?.totalElapsed ?? -1, 1, accuracy: 0.001)
+        XCTAssertEqual(coordinator.clockStates.count, 2)
 
         viewModel.refresh(at: clock.now)
-        XCTAssertEqual(coordinator.snapshots.count, 3)
+        XCTAssertEqual(coordinator.clockStates.count, 2)
 
         clock.advance(seconds: 1)
         viewModel.refresh(at: clock.now)
-        XCTAssertEqual(coordinator.snapshots.count, 4)
-        XCTAssertEqual(coordinator.snapshots.last?.totalElapsed ?? -1, 2, accuracy: 0.001)
+        XCTAssertEqual(coordinator.clockStates.count, 2)
+
+        try viewModel.pause()
+        XCTAssertEqual(coordinator.clockStates.count, 3)
+        XCTAssertEqual(coordinator.clockStates.last?.status, .pausedLeft)
     }
 
     func testEndSessionPersistsCompletedSession() async throws {
@@ -147,11 +149,11 @@ final class ActiveSessionViewModelTests: XCTestCase {
 
 @MainActor
 private final class LiveActivityCoordinatorSpy: LiveActivityLifecycleCoordinating {
-    private(set) var snapshots: [SessionTimerSnapshot] = []
+    private(set) var clockStates: [SessionTimerClockState] = []
     private(set) var sources: [String] = []
 
-    func reconcile(snapshot: SessionTimerSnapshot, source: String) {
-        snapshots.append(snapshot)
+    func reconcile(clockState: SessionTimerClockState, source: String) {
+        clockStates.append(clockState)
         sources.append(source)
     }
 }

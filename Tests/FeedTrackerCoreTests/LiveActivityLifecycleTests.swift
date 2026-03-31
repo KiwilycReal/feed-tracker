@@ -17,24 +17,24 @@ final class LiveActivityLifecycleTests: XCTestCase {
 
         try engine.start(.left)
         clock.advance(seconds: 40)
-        coordinator.reconcile(snapshot: engine.snapshot(), source: "foreground")
+        coordinator.reconcile(clockState: engine.clockState(), source: "foreground")
         XCTAssertEqual(controller.startCount, 1)
         XCTAssertEqual(controller.lastState?.timerStatusRawValue, LiveActivityTimerStatus.running.rawValue)
         XCTAssertGreaterThan(controller.lastState?.renderVersion ?? 0, 0)
 
         clock.advance(seconds: 25)
-        coordinator.reconcile(snapshot: engine.snapshot(), source: "background")
-        XCTAssertEqual(controller.updateCount, 1)
+        coordinator.reconcile(clockState: engine.clockState(), source: "background")
+        XCTAssertEqual(controller.updateCount, 0)
 
         clock.advance(seconds: 35)
 
         let relaunchedEngine = SessionTimerEngine(now: { clock.now })
         let recovery = try XCTUnwrap(engine.recoveryStateForPersistence())
         try relaunchedEngine.restore(from: recovery)
-        coordinator.reconcile(snapshot: relaunchedEngine.snapshot(), source: "relaunch")
+        coordinator.reconcile(clockState: relaunchedEngine.clockState(), source: "relaunch")
 
         XCTAssertEqual(controller.startCount, 1)
-        XCTAssertGreaterThanOrEqual(controller.updateCount, 2)
+        XCTAssertEqual(controller.updateCount, 0)
         XCTAssertEqual(controller.lastState?.timerStatusRawValue, LiveActivityTimerStatus.running.rawValue)
         let projected = try XCTUnwrap(controller.lastState?.projectedTotalElapsed(at: clock.now))
         XCTAssertEqual(projected, 100, accuracy: 0.001)
@@ -62,7 +62,7 @@ final class LiveActivityLifecycleTests: XCTestCase {
             endedAt: nil
         )
 
-        coordinator.reconcile(snapshot: snapshot, source: "session-id-check")
+        coordinator.reconcile(clockState: SessionTimerClockState(snapshot: snapshot), source: "session-id-check")
 
         XCTAssertEqual(controller.lastStartSessionID, expectedSessionID)
         XCTAssertEqual(controller.lastObservedSessionID, expectedSessionID)
@@ -80,16 +80,16 @@ final class LiveActivityLifecycleTests: XCTestCase {
         )
 
         try engine.start(.right)
-        coordinator.reconcile(snapshot: engine.snapshot(), source: "running")
+        coordinator.reconcile(clockState: engine.clockState(), source: "running")
         _ = try engine.endSession(note: nil)
-        coordinator.reconcile(snapshot: engine.snapshot(), source: "ended")
+        coordinator.reconcile(clockState: engine.clockState(), source: "ended")
 
         XCTAssertEqual(controller.endCount, 1)
         XCTAssertNotNil(controller.lastEndSessionID)
         XCTAssertFalse(controller.isActive)
 
         let relaunchedEngine = SessionTimerEngine(now: { clock.now })
-        coordinator.reconcile(snapshot: relaunchedEngine.snapshot(), source: "relaunch")
+        coordinator.reconcile(clockState: relaunchedEngine.clockState(), source: "relaunch")
 
         XCTAssertEqual(controller.startCount, 1)
         XCTAssertGreaterThanOrEqual(controller.endCount, 1)
@@ -109,11 +109,11 @@ final class LiveActivityLifecycleTests: XCTestCase {
         )
 
         try engine.start(.left)
-        coordinator.reconcile(snapshot: engine.snapshot(), source: "running")
+        coordinator.reconcile(clockState: engine.clockState(), source: "running")
         _ = try engine.endSession(note: nil)
 
-        coordinator.reconcile(snapshot: engine.snapshot(), source: "ended-1")
-        coordinator.reconcile(snapshot: engine.snapshot(), source: "ended-2")
+        coordinator.reconcile(clockState: engine.clockState(), source: "ended-1")
+        coordinator.reconcile(clockState: engine.clockState(), source: "ended-2")
 
         XCTAssertFalse(controller.isActive)
         XCTAssertEqual(controller.startCount, 1)
@@ -247,6 +247,30 @@ final class LiveActivityLifecycleTests: XCTestCase {
         XCTAssertEqual(state.projectedTotalElapsed(at: Date(timeIntervalSince1970: 141_103)), 20, accuracy: 0.001)
     }
 
+    func testRedundantRunningReconcileRestartsActivityIfDisplayedInstanceDisappears() throws {
+        let clock = LiveActivityTestClock(start: Date(timeIntervalSince1970: 141_200))
+        let engine = SessionTimerEngine(now: { clock.now })
+        let controller = SpyLiveActivityController()
+        let renderVersion = RenderVersionCounter()
+        let coordinator = LiveActivityLifecycleCoordinator(
+            controller: controller,
+            now: { clock.now },
+            nextRenderVersion: { renderVersion.next() }
+        )
+
+        try engine.start(.left)
+        let runningClockState = engine.clockState()
+
+        coordinator.reconcile(clockState: runningClockState, source: "initial")
+        XCTAssertEqual(controller.startCount, 1)
+
+        controller.forceVisibleActivityLoss()
+        coordinator.reconcile(clockState: runningClockState, source: "recover_missing_activity")
+
+        XCTAssertEqual(controller.startCount, 2)
+        XCTAssertTrue(controller.isActive(sessionID: controller.lastStartSessionID!))
+    }
+
     func testContentStateDecodesLegacyPayloadWithoutRenderVersion() throws {
         let payload = """
         {
@@ -314,6 +338,10 @@ private final class SpyLiveActivityController: LiveActivityControlling {
         if let state {
             lastState = state
         }
+    }
+
+    func forceVisibleActivityLoss() {
+        isActive = false
     }
 }
 

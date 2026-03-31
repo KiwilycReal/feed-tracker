@@ -147,6 +147,51 @@ final class SessionTimerEngineTests: XCTestCase {
         XCTAssertEqual(recoveryState.rightAccumulated, 3, accuracy: 0.001)
         XCTAssertEqual(recoveryState.sessionID, decodedAgain.sessionID)
     }
+
+    func testClockStateProjectsRunningElapsedFromRecordedCheckpoint() throws {
+        let clock = TestClock(start: Date(timeIntervalSince1970: 3_200))
+        let engine = SessionTimerEngine(now: { clock.now })
+
+        try engine.start(.left)
+        clock.advance(seconds: 12)
+
+        let recordedAt = clock.now
+        let clockState = engine.clockState(at: recordedAt)
+
+        clock.advance(seconds: 9)
+        let projected = clockState.snapshot(at: clock.now)
+
+        XCTAssertEqual(clockState.status, .runningLeft)
+        XCTAssertEqual(clockState.runningSince?.timeIntervalSince1970 ?? -1, recordedAt.addingTimeInterval(-12).timeIntervalSince1970, accuracy: 0.001)
+        XCTAssertEqual(projected.leftElapsed, 21, accuracy: 0.001)
+        XCTAssertEqual(projected.rightElapsed, 0, accuracy: 0.001)
+        XCTAssertEqual(projected.totalElapsed, 21, accuracy: 0.001)
+    }
+
+    func testClockStateRecoveryStateKeepsPausedSideWithoutRunningAnchor() {
+        let startedAt = Date(timeIntervalSince1970: 3_300)
+        let recordedAt = startedAt.addingTimeInterval(25)
+        let sessionID = UUID()
+
+        let clockState = SessionTimerClockState(
+            sessionID: sessionID,
+            status: .pausedRight,
+            startedAt: startedAt,
+            endedAt: nil,
+            runningSince: nil,
+            leftAccumulated: 8,
+            rightAccumulated: 17,
+            recordedAt: recordedAt
+        )
+
+        let recoveryState = clockState.recoveryState
+
+        XCTAssertEqual(recoveryState?.sessionID, sessionID)
+        XCTAssertEqual(recoveryState?.status, .pausedRight)
+        XCTAssertEqual(recoveryState?.runningSince, nil)
+        XCTAssertEqual(recoveryState?.leftAccumulated ?? -1, 8, accuracy: 0.001)
+        XCTAssertEqual(recoveryState?.rightAccumulated ?? -1, 17, accuracy: 0.001)
+    }
 }
 
 private final class TestClock {

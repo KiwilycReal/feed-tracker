@@ -288,46 +288,21 @@ public final class SessionTimerEngine {
     }
 
     public func recoveryStateForPersistence() -> SessionTimerRecoveryState? {
-        guard let startedAt, let sessionID else {
-            return nil
-        }
+        clockState().recoveryState
+    }
 
-        switch state {
-        case .idle, .ended:
-            return nil
-
-        case .running(let side):
-            let status: SessionTimerRecoveryStatus = side == .left ? .runningLeft : .runningRight
-            return SessionTimerRecoveryState(
-                sessionID: sessionID,
-                status: status,
-                startedAt: startedAt,
-                runningSince: runningSince,
-                leftAccumulated: leftAccumulated,
-                rightAccumulated: rightAccumulated
-            )
-
-        case .paused(let side):
-            let status: SessionTimerRecoveryStatus = side == .left ? .pausedLeft : .pausedRight
-            return SessionTimerRecoveryState(
-                sessionID: sessionID,
-                status: status,
-                startedAt: startedAt,
-                runningSince: nil,
-                leftAccumulated: leftAccumulated,
-                rightAccumulated: rightAccumulated
-            )
-
-        case .stopped:
-            return SessionTimerRecoveryState(
-                sessionID: sessionID,
-                status: .stopped,
-                startedAt: startedAt,
-                runningSince: nil,
-                leftAccumulated: leftAccumulated,
-                rightAccumulated: rightAccumulated
-            )
-        }
+    public func clockState(at date: Date? = nil) -> SessionTimerClockState {
+        let recordedAt = date ?? now()
+        return SessionTimerClockState(
+            sessionID: sessionID,
+            status: clockStatus(for: state),
+            startedAt: startedAt,
+            endedAt: endedAt,
+            runningSince: runningSince,
+            leftAccumulated: leftAccumulated,
+            rightAccumulated: rightAccumulated,
+            recordedAt: recordedAt
+        )
     }
 
     public func reset() {
@@ -381,31 +356,7 @@ public final class SessionTimerEngine {
     }
 
     public func snapshot(at date: Date? = nil) -> SessionTimerSnapshot {
-        let now = date ?? self.now()
-        var leftElapsed = leftAccumulated
-        var rightElapsed = rightAccumulated
-
-        if case .running(let side) = state, let runningSince {
-            let delta = max(0, now.timeIntervalSince(runningSince))
-            switch side {
-            case .left:
-                leftElapsed += delta
-            case .right:
-                rightElapsed += delta
-            }
-        }
-
-        return SessionTimerSnapshot(
-            sessionID: sessionID,
-            state: state,
-            activeSide: activeSide(for: state),
-            leftElapsed: leftElapsed,
-            rightElapsed: rightElapsed,
-            totalElapsed: leftElapsed + rightElapsed,
-            startedAt: startedAt,
-            endedAt: endedAt,
-            capturedAt: now
-        )
+        clockState(at: date).snapshot(at: date)
     }
 
     private func activeSide(for state: SessionTimerState) -> FeedingSide? {
@@ -414,6 +365,21 @@ public final class SessionTimerEngine {
             return side
         case .idle, .stopped, .ended:
             return nil
+        }
+    }
+
+    private func clockStatus(for state: SessionTimerState) -> SessionTimerClockStatus {
+        switch state {
+        case .idle:
+            return .idle
+        case .running(let side):
+            return side == .left ? .runningLeft : .runningRight
+        case .paused(let side):
+            return side == .left ? .pausedLeft : .pausedRight
+        case .stopped:
+            return .stopped
+        case .ended:
+            return .ended
         }
     }
 

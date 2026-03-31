@@ -2,7 +2,7 @@ import Foundation
 
 public protocol LiveActivityLifecycleCoordinating: AnyObject, Sendable {
     @MainActor
-    func reconcile(snapshot: SessionTimerSnapshot, source: String)
+    func reconcile(clockState: SessionTimerClockState, source: String)
 }
 
 public protocol LiveActivityControlling: AnyObject, Sendable {
@@ -31,27 +31,52 @@ public final class NoopLiveActivityController: LiveActivityControlling {
 @MainActor
 public final class LiveActivityLifecycleCoordinator: LiveActivityLifecycleCoordinating {
     private let controller: any LiveActivityControlling
+    private let now: @Sendable () -> Date
     private let nextRenderVersion: @Sendable () -> UInt64
     private let diagnostics: (any DiagnosticsLogging)?
 
     private var activeSessionID: UUID?
+    private var lastReconciledSyncToken: String?
 
     public init(
         controller: any LiveActivityControlling,
-        now _: @escaping @Sendable () -> Date = { Date() },
+        now: @escaping @Sendable () -> Date = { Date() },
         nextRenderVersion: @escaping @Sendable () -> UInt64 = { FeedTrackerSharedStorage.nextLiveActivityRenderVersion() },
         diagnostics: (any DiagnosticsLogging)? = nil
     ) {
         self.controller = controller
+        self.now = now
         self.nextRenderVersion = nextRenderVersion
         self.diagnostics = diagnostics
     }
 
-    public func reconcile(snapshot: SessionTimerSnapshot, source: String) {
-        switch snapshot.state {
+    public func reconcile(clockState: SessionTimerClockState, source: String) {
+        let snapshot = clockState.snapshot(at: now())
+        let sessionID = liveActivitySessionIdentifier(for: clockState)
+        let isRedundantRunningReconcile = clockState.status != .idle
+            && clockState.status != .ended
+            && lastReconciledSyncToken == clockState.liveActivitySyncToken
+            && controller.isActive(sessionID: sessionID)
+
+        if isRedundantRunningReconcile {
+            diagnostics?.record(
+                category: "live_activity_lifecycle",
+                action: "skip_redundant_reconcile",
+                metadata: [
+                    "source": source,
+                    "sessionID": sessionID.uuidString,
+                    "status": clockState.status.rawValue
+                ],
+                source: "live_activity_coordinator"
+            )
+            return
+        }
+
+        switch clockState.status {
         case .idle, .ended:
             controller.end(sessionID: activeSessionID ?? snapshot.sessionID, state: contentState(for: snapshot))
             activeSessionID = nil
+            lastReconciledSyncToken = clockState.liveActivitySyncToken
             diagnostics?.record(
                 category: "live_activity_lifecycle",
                 action: "end",
@@ -59,10 +84,10 @@ public final class LiveActivityLifecycleCoordinator: LiveActivityLifecycleCoordi
                 source: "live_activity_coordinator"
             )
 
-        case .running, .paused, .stopped:
-            let sessionID = liveActivitySessionIdentifier(for: snapshot)
-            let contentState = contentState(for: snapshot)
+        case .runningLeft, .runningRight, .pausedLeft, .pausedRight, .stopped:
+            let contentState = contentState(for: clockState, capturedAt: snapshot.capturedAt)
             activeSessionID = sessionID
+            lastReconciledSyncToken = clockState.liveActivitySyncToken
 
             if controller.isActive(sessionID: sessionID) {
                 controller.update(sessionID: sessionID, state: contentState)
@@ -102,6 +127,16 @@ public final class LiveActivityLifecycleCoordinator: LiveActivityLifecycleCoordi
         }
     }
 
+    private func contentState(
+        for clockState: SessionTimerClockState,
+        capturedAt: Date
+    ) -> FeedTrackerLiveActivityAttributes.ContentState {
+        clockState.liveActivityContentState(
+            at: capturedAt,
+            renderVersion: nextRenderVersion()
+        )
+    }
+
     private func contentState(for snapshot: SessionTimerSnapshot) -> FeedTrackerLiveActivityAttributes.ContentState {
         FeedTrackerLiveActivityAttributes.ContentState(
             state: LiveActivityState(snapshot: snapshot),
@@ -110,12 +145,12 @@ public final class LiveActivityLifecycleCoordinator: LiveActivityLifecycleCoordi
         )
     }
 
-    private func liveActivitySessionIdentifier(for snapshot: SessionTimerSnapshot) -> UUID {
-        if let sessionID = snapshot.sessionID {
+    private func liveActivitySessionIdentifier(for clockState: SessionTimerClockState) -> UUID {
+        if let sessionID = clockState.sessionID {
             return sessionID
         }
 
-        return stableSessionIdentifier(startedAt: snapshot.startedAt)
+        return stableSessionIdentifier(startedAt: clockState.startedAt)
     }
 
     private func stableSessionIdentifier(startedAt: Date?) -> UUID {

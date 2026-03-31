@@ -182,6 +182,10 @@ public final class LiveActivityQuickActionHandler {
         LiveActivityState(snapshot: engine.snapshot(at: date))
     }
 
+    public func currentClockState(at date: Date? = nil) -> SessionTimerClockState {
+        engine.clockState(at: date)
+    }
+
     public func flushPendingPersistence() async {
         await pendingPersistenceTask?.value
     }
