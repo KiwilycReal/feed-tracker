@@ -52,26 +52,26 @@ struct FeedTrackerLiveActivityWidget: Widget {
 
     @ViewBuilder
     private func lockScreenView(context: ActivityViewContext<FeedTrackerLiveActivityAttributes>) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 10) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 8) {
                 metadataBadge(for: context.state)
-                Spacer(minLength: 8)
+                Spacer(minLength: 6)
                 liveClockView()
-                    .font(.caption.monospacedDigit().weight(.semibold))
+                    .font(.caption2.monospacedDigit().weight(.semibold))
                     .foregroundStyle(.white.opacity(0.76))
             }
 
             synchronizedTimerRow(
                 for: context.state,
-                activeFont: .system(size: 30, weight: .bold, design: .rounded).monospacedDigit(),
-                totalFont: .system(size: 26, weight: .bold, design: .rounded).monospacedDigit(),
+                activeFont: .system(size: 28, weight: .bold, design: .rounded).monospacedDigit(),
+                totalFont: .system(size: 24, weight: .bold, design: .rounded).monospacedDigit(),
                 sessionID: context.attributes.sessionID,
-                pauseButtonSize: 58,
-                panelHeight: 68,
-                rowSpacing: 10
+                pauseButtonSize: 54,
+                panelHeight: 62,
+                rowSpacing: 8
             )
 
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 intentPillActionButton(
                     title: "Switch",
                     systemImage: "arrow.triangle.2.circlepath",
@@ -79,7 +79,7 @@ struct FeedTrackerLiveActivityWidget: Widget {
                     backgroundOpacity: 0.16,
                     action: .switchSide,
                     sessionID: context.attributes.sessionID,
-                    height: 38
+                    height: 34
                 )
 
                 intentPillActionButton(
@@ -89,30 +89,30 @@ struct FeedTrackerLiveActivityWidget: Widget {
                     backgroundOpacity: 0.18,
                     action: .terminate,
                     sessionID: context.attributes.sessionID,
-                    height: 38
+                    height: 34
                 )
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 4)
     }
 
     private func expandedTopLeadingView(for state: FeedTrackerLiveActivityContentState) -> some View {
         metadataBadge(for: state)
-            .padding(.top, 8)
-            .padding(.bottom, 2)
-            .padding(.leading, 8)
+            .padding(.top, 11)
+            .padding(.bottom, 1)
+            .padding(.leading, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func expandedTopTrailingView() -> some View {
         liveClockView()
-            .font(.caption2.monospacedDigit().weight(.semibold))
+            .font(.system(size: 11, weight: .semibold, design: .rounded).monospacedDigit())
             .foregroundStyle(.white.opacity(0.72))
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.top, 8)
-            .padding(.bottom, 2)
-            .padding(.trailing, 8)
+            .padding(.top, 11)
+            .padding(.bottom, 1)
+            .padding(.trailing, 10)
     }
 
     private func expandedMiddleRow(
@@ -120,21 +120,22 @@ struct FeedTrackerLiveActivityWidget: Widget {
     ) -> some View {
         synchronizedTimerRow(
             for: context.state,
-            activeFont: .system(size: 27, weight: .bold, design: .rounded).monospacedDigit(),
-            totalFont: .system(size: 23, weight: .bold, design: .rounded).monospacedDigit(),
+            activeFont: .system(size: 25, weight: .bold, design: .rounded).monospacedDigit(),
+            totalFont: .system(size: 21, weight: .bold, design: .rounded).monospacedDigit(),
             sessionID: context.attributes.sessionID,
-            pauseButtonSize: 52,
-            panelHeight: 60,
-            rowSpacing: 8
+            pauseButtonSize: 48,
+            panelHeight: 54,
+            rowSpacing: 6
         )
         .frame(maxWidth: .infinity)
-        .padding(.top, 6)
+        .padding(.top, 4)
+        .padding(.horizontal, 4)
     }
 
     private func expandedBottomRow(
         context: ActivityViewContext<FeedTrackerLiveActivityAttributes>
     ) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 7) {
             intentPillActionButton(
                 title: "Switch",
                 systemImage: "arrow.triangle.2.circlepath",
@@ -142,7 +143,7 @@ struct FeedTrackerLiveActivityWidget: Widget {
                 backgroundOpacity: 0.16,
                 action: .switchSide,
                 sessionID: context.attributes.sessionID,
-                height: 34
+                height: 32
             )
 
             intentPillActionButton(
@@ -152,13 +153,13 @@ struct FeedTrackerLiveActivityWidget: Widget {
                 backgroundOpacity: 0.18,
                 action: .terminate,
                 sessionID: context.attributes.sessionID,
-                height: 34
+                height: 32
             )
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 2)
-        .padding(.top, 2)
-        .padding(.bottom, 1)
+        .padding(.horizontal, 4)
+        .padding(.top, 1)
+        .padding(.bottom, 0)
     }
 
     private func compactLeadingView(for state: FeedTrackerLiveActivityContentState) -> some View {
@@ -272,9 +273,9 @@ struct FeedTrackerLiveActivityWidget: Widget {
         height: CGFloat,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: isLeading ? .leading : .trailing, spacing: 5) {
+        VStack(alignment: isLeading ? .leading : .trailing, spacing: 4) {
             Text(title)
-                .font(.caption2.weight(.semibold))
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
                 .foregroundStyle(accent.opacity(0.76))
                 .textCase(.uppercase)
                 .lineLimit(1)
@@ -285,27 +286,27 @@ struct FeedTrackerLiveActivityWidget: Widget {
         }
         .frame(maxWidth: .infinity, alignment: isLeading ? .leading : .trailing)
         .frame(height: height, alignment: isLeading ? .leading : .trailing)
-        .padding(.horizontal, 10)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.horizontal, 9)
+        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(accent.opacity(0.12), lineWidth: 1)
         )
     }
 
     private func metadataBadge(for state: FeedTrackerLiveActivityContentState) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 5) {
             Circle()
                 .fill(Color.white.opacity(0.82))
-                .frame(width: 6, height: 6)
+                .frame(width: 5, height: 5)
             Text(expandedSideLabel(for: state.activeSideRawValue))
-                .font(.caption2.weight(.semibold))
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white.opacity(0.82))
                 .textCase(.uppercase)
                 .lineLimit(1)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
         .background(Color.white.opacity(0.08), in: Capsule())
         .overlay(
             Capsule()
@@ -346,11 +347,11 @@ struct FeedTrackerLiveActivityWidget: Widget {
         height: CGFloat
     ) -> some View {
         Button(intent: FeedTrackerLiveActivityControlIntent(action: action, sessionID: sessionID)) {
-            HStack(spacing: 6) {
+            HStack(spacing: 5) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
                 Text(title)
-                    .font(.caption2.weight(.semibold))
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
             }
             .foregroundStyle(tint)
             .frame(maxWidth: .infinity)
