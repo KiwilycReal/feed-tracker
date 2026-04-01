@@ -14,6 +14,41 @@ struct FeedTrackerLiveActivityWidgetBundle: WidgetBundle {
 @available(iOSApplicationExtension 17.0, *)
 struct FeedTrackerLiveActivityWidget: Widget {
     private static let liveClockLocale = Locale(identifier: "en_GB")
+    private static let lockScreenSpec = LiveActivitySurfaceSpec(
+        activeFont: .system(size: 27, weight: .bold, design: .rounded).monospacedDigit(),
+        totalFont: .system(size: 23, weight: .bold, design: .rounded).monospacedDigit(),
+        clockFont: .caption2.monospacedDigit().weight(.semibold),
+        badgeFont: .system(size: 11, weight: .semibold, design: .rounded),
+        contentSpacing: 10,
+        timerSpacing: 8,
+        compactTimerSpacing: 6,
+        panelHorizontalPadding: 10,
+        panelVerticalPadding: 8,
+        metricMinHeight: 58,
+        controlSize: 52,
+        actionSpacing: 8,
+        actionMinHeight: 34,
+        badgeHorizontalPadding: 7,
+        badgeVerticalPadding: 3
+    )
+    private static let expandedSpec = LiveActivitySurfaceSpec(
+        activeFont: .system(size: 24, weight: .bold, design: .rounded).monospacedDigit(),
+        totalFont: .system(size: 20, weight: .bold, design: .rounded).monospacedDigit(),
+        clockFont: .system(size: 11, weight: .semibold, design: .rounded).monospacedDigit(),
+        badgeFont: .system(size: 10, weight: .semibold, design: .rounded),
+        contentSpacing: 8,
+        timerSpacing: 6,
+        compactTimerSpacing: 4,
+        panelHorizontalPadding: 9,
+        panelVerticalPadding: 7,
+        metricMinHeight: 50,
+        controlSize: 46,
+        actionSpacing: 6,
+        actionMinHeight: 31,
+        badgeHorizontalPadding: 6,
+        badgeVerticalPadding: 3
+    )
+
     private let totalTimerColor = Color(red: 1, green: 0.82, blue: 0.24)
 
     var body: some WidgetConfiguration {
@@ -52,114 +87,71 @@ struct FeedTrackerLiveActivityWidget: Widget {
 
     @ViewBuilder
     private func lockScreenView(context: ActivityViewContext<FeedTrackerLiveActivityAttributes>) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center, spacing: 8) {
-                metadataBadge(for: context.state)
-                Spacer(minLength: 6)
-                liveClockView()
-                    .font(.caption2.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.76))
-            }
+        let spec = Self.lockScreenSpec
 
-            synchronizedTimerRow(
+        VStack(alignment: .leading, spacing: spec.contentSpacing) {
+            surfaceHeader(for: context.state, spec: spec)
+
+            primaryMetricsStrip(
                 for: context.state,
-                activeFont: .system(size: 28, weight: .bold, design: .rounded).monospacedDigit(),
-                totalFont: .system(size: 24, weight: .bold, design: .rounded).monospacedDigit(),
                 sessionID: context.attributes.sessionID,
-                pauseButtonSize: 54,
-                panelHeight: 62,
-                rowSpacing: 8
+                spec: spec
             )
 
-            HStack(spacing: 8) {
-                intentPillActionButton(
-                    title: "Switch",
-                    systemImage: "arrow.triangle.2.circlepath",
-                    tint: .accentColor,
-                    backgroundOpacity: 0.16,
-                    action: .switchSide,
-                    sessionID: context.attributes.sessionID,
-                    height: 34
-                )
-
-                intentPillActionButton(
-                    title: "Stop",
-                    systemImage: "stop.fill",
-                    tint: .red,
-                    backgroundOpacity: 0.18,
-                    action: .terminate,
-                    sessionID: context.attributes.sessionID,
-                    height: 34
-                )
-            }
+            actionStrip(sessionID: context.attributes.sessionID, spec: spec)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
     }
 
     private func expandedTopLeadingView(for state: FeedTrackerLiveActivityContentState) -> some View {
-        metadataBadge(for: state)
-            .padding(.top, 11)
-            .padding(.bottom, 1)
-            .padding(.leading, 10)
+        metadataBadge(for: state, spec: Self.expandedSpec)
+            .padding(.top, 10)
+            .padding(.bottom, 2)
+            .padding(.leading, 11)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func expandedTopTrailingView() -> some View {
-        liveClockView()
-            .font(.system(size: 11, weight: .semibold, design: .rounded).monospacedDigit())
-            .foregroundStyle(.white.opacity(0.72))
+        liveClockView(font: Self.expandedSpec.clockFont, foregroundOpacity: 0.72)
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.top, 11)
-            .padding(.bottom, 1)
-            .padding(.trailing, 10)
+            .padding(.top, 10)
+            .padding(.bottom, 2)
+            .padding(.trailing, 11)
     }
 
     private func expandedMiddleRow(
         context: ActivityViewContext<FeedTrackerLiveActivityAttributes>
     ) -> some View {
-        synchronizedTimerRow(
+        primaryMetricsStrip(
             for: context.state,
-            activeFont: .system(size: 25, weight: .bold, design: .rounded).monospacedDigit(),
-            totalFont: .system(size: 21, weight: .bold, design: .rounded).monospacedDigit(),
             sessionID: context.attributes.sessionID,
-            pauseButtonSize: 48,
-            panelHeight: 54,
-            rowSpacing: 6
+            spec: Self.expandedSpec
         )
         .frame(maxWidth: .infinity)
-        .padding(.top, 4)
-        .padding(.horizontal, 4)
+        .padding(.top, 3)
+        .padding(.horizontal, 6)
     }
 
     private func expandedBottomRow(
         context: ActivityViewContext<FeedTrackerLiveActivityAttributes>
     ) -> some View {
-        HStack(spacing: 7) {
-            intentPillActionButton(
-                title: "Switch",
-                systemImage: "arrow.triangle.2.circlepath",
-                tint: .accentColor,
-                backgroundOpacity: 0.16,
-                action: .switchSide,
-                sessionID: context.attributes.sessionID,
-                height: 32
-            )
+        actionStrip(sessionID: context.attributes.sessionID, spec: Self.expandedSpec)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 6)
+            .padding(.top, 1)
+            .padding(.bottom, 1)
+    }
 
-            intentPillActionButton(
-                title: "Stop",
-                systemImage: "stop.fill",
-                tint: .red,
-                backgroundOpacity: 0.18,
-                action: .terminate,
-                sessionID: context.attributes.sessionID,
-                height: 32
-            )
+    private func surfaceHeader(
+        for state: FeedTrackerLiveActivityContentState,
+        spec: LiveActivitySurfaceSpec
+    ) -> some View {
+        HStack(alignment: .center, spacing: 8) {
+            metadataBadge(for: state, spec: spec)
+            Spacer(minLength: 8)
+            liveClockView(font: spec.clockFont, foregroundOpacity: 0.76)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 4)
-        .padding(.top, 1)
-        .padding(.bottom, 0)
     }
 
     private func compactLeadingView(for state: FeedTrackerLiveActivityContentState) -> some View {
@@ -170,7 +162,7 @@ struct FeedTrackerLiveActivityWidget: Widget {
             activeElapsedText(for: state, font: .caption2.monospacedDigit().weight(.semibold), compact: true)
                 .foregroundStyle(.white)
                 .lineLimit(1)
-                .minimumScaleFactor(0.72)
+                .minimumScaleFactor(0.68)
         }
         .padding(.leading, 6)
         .padding(.trailing, 3)
@@ -181,7 +173,7 @@ struct FeedTrackerLiveActivityWidget: Widget {
             totalElapsedText(for: state, font: .caption2.monospacedDigit().weight(.semibold), compact: true)
                 .foregroundStyle(totalTimerColor)
                 .lineLimit(1)
-                .minimumScaleFactor(0.72)
+                .minimumScaleFactor(0.68)
             Image(systemName: statusIcon(for: state.timerStatusRawValue))
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(.white.opacity(0.82))
@@ -195,36 +187,136 @@ struct FeedTrackerLiveActivityWidget: Widget {
             .font(.caption2.weight(.bold))
     }
 
-    private func synchronizedTimerRow(
+    private func primaryMetricsStrip(
         for state: FeedTrackerLiveActivityContentState,
+        sessionID: String,
+        spec: LiveActivitySurfaceSpec
+    ) -> some View {
+        ViewThatFits(in: .horizontal) {
+            timerMetricsRow(
+                for: state,
+                sessionID: sessionID,
+                activeFont: spec.activeFont,
+                totalFont: spec.totalFont,
+                panelHorizontalPadding: spec.panelHorizontalPadding,
+                panelVerticalPadding: spec.panelVerticalPadding,
+                panelSpacing: spec.timerSpacing,
+                controlSize: spec.controlSize,
+                minHeight: spec.metricMinHeight
+            )
+
+            timerMetricsRow(
+                for: state,
+                sessionID: sessionID,
+                activeFont: spec.activeFont,
+                totalFont: spec.totalFont,
+                panelHorizontalPadding: max(7, spec.panelHorizontalPadding - 2),
+                panelVerticalPadding: max(6, spec.panelVerticalPadding - 1),
+                panelSpacing: spec.compactTimerSpacing,
+                controlSize: max(40, spec.controlSize - 4),
+                minHeight: max(46, spec.metricMinHeight - 4)
+            )
+        }
+    }
+
+    private func timerMetricsRow(
+        for state: FeedTrackerLiveActivityContentState,
+        sessionID: String,
         activeFont: Font,
         totalFont: Font,
-        sessionID: String,
-        pauseButtonSize: CGFloat,
-        panelHeight: CGFloat,
-        rowSpacing: CGFloat
+        panelHorizontalPadding: CGFloat,
+        panelVerticalPadding: CGFloat,
+        panelSpacing: CGFloat,
+        controlSize: CGFloat,
+        minHeight: CGFloat
     ) -> some View {
         let pauseControl = pauseControlMetadata(for: state.timerStatusRawValue)
 
-        return HStack(spacing: rowSpacing) {
-            timerPanel(title: "Active", accent: .white, isLeading: true, height: panelHeight) {
+        return HStack(alignment: .center, spacing: panelSpacing) {
+            timerPanel(
+                title: "Active",
+                accent: .white,
+                isLeading: true,
+                minHeight: minHeight,
+                horizontalPadding: panelHorizontalPadding,
+                verticalPadding: panelVerticalPadding
+            ) {
                 activeElapsedText(for: state, font: activeFont, compact: false)
                     .foregroundStyle(.white)
             }
+            .layoutPriority(1)
 
             intentCircleActionButton(
                 title: pauseControl.title,
                 systemImage: pauseControl.systemImage,
                 tint: Color.white.opacity(0.88),
                 backgroundOpacity: 0.18,
-                size: pauseButtonSize,
+                size: controlSize,
                 action: .togglePause,
                 sessionID: sessionID
             )
+            .fixedSize()
 
-            timerPanel(title: "Total", accent: totalTimerColor, isLeading: false, height: panelHeight) {
+            timerPanel(
+                title: "Total",
+                accent: totalTimerColor,
+                isLeading: false,
+                minHeight: minHeight,
+                horizontalPadding: panelHorizontalPadding,
+                verticalPadding: panelVerticalPadding
+            ) {
                 totalElapsedText(for: state, font: totalFont, compact: false)
                     .foregroundStyle(totalTimerColor)
+            }
+            .layoutPriority(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    private func actionStrip(sessionID: String, spec: LiveActivitySurfaceSpec) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: spec.actionSpacing) {
+                intentPillActionButton(
+                    title: "Switch",
+                    systemImage: "arrow.triangle.2.circlepath",
+                    tint: .accentColor,
+                    backgroundOpacity: 0.16,
+                    action: .switchSide,
+                    sessionID: sessionID,
+                    minHeight: spec.actionMinHeight
+                )
+
+                intentPillActionButton(
+                    title: "Stop",
+                    systemImage: "stop.fill",
+                    tint: .red,
+                    backgroundOpacity: 0.18,
+                    action: .terminate,
+                    sessionID: sessionID,
+                    minHeight: spec.actionMinHeight
+                )
+            }
+
+            VStack(spacing: spec.actionSpacing) {
+                intentPillActionButton(
+                    title: "Switch",
+                    systemImage: "arrow.triangle.2.circlepath",
+                    tint: .accentColor,
+                    backgroundOpacity: 0.16,
+                    action: .switchSide,
+                    sessionID: sessionID,
+                    minHeight: spec.actionMinHeight
+                )
+
+                intentPillActionButton(
+                    title: "Stop",
+                    systemImage: "stop.fill",
+                    tint: .red,
+                    backgroundOpacity: 0.18,
+                    action: .terminate,
+                    sessionID: sessionID,
+                    minHeight: spec.actionMinHeight
+                )
             }
         }
     }
@@ -270,10 +362,14 @@ struct FeedTrackerLiveActivityWidget: Widget {
         title: String,
         accent: Color,
         isLeading: Bool,
-        height: CGFloat,
+        minHeight: CGFloat,
+        horizontalPadding: CGFloat,
+        verticalPadding: CGFloat,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: isLeading ? .leading : .trailing, spacing: 4) {
+        let alignment: Alignment = isLeading ? .leading : .trailing
+
+        return VStack(alignment: isLeading ? .leading : .trailing, spacing: 5) {
             Text(title)
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                 .foregroundStyle(accent.opacity(0.76))
@@ -282,11 +378,13 @@ struct FeedTrackerLiveActivityWidget: Widget {
 
             content()
                 .lineLimit(1)
-                .minimumScaleFactor(0.62)
+                .minimumScaleFactor(0.54)
+                .frame(maxWidth: .infinity, alignment: alignment)
         }
-        .frame(maxWidth: .infinity, alignment: isLeading ? .leading : .trailing)
-        .frame(height: height, alignment: isLeading ? .leading : .trailing)
-        .padding(.horizontal, 9)
+        .frame(maxWidth: .infinity, alignment: alignment)
+        .padding(.horizontal, horizontalPadding)
+        .padding(.vertical, verticalPadding)
+        .frame(minHeight: minHeight, alignment: alignment)
         .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -294,19 +392,22 @@ struct FeedTrackerLiveActivityWidget: Widget {
         )
     }
 
-    private func metadataBadge(for state: FeedTrackerLiveActivityContentState) -> some View {
+    private func metadataBadge(
+        for state: FeedTrackerLiveActivityContentState,
+        spec: LiveActivitySurfaceSpec
+    ) -> some View {
         HStack(spacing: 5) {
             Circle()
                 .fill(Color.white.opacity(0.82))
                 .frame(width: 5, height: 5)
             Text(expandedSideLabel(for: state.activeSideRawValue))
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .font(spec.badgeFont)
                 .foregroundStyle(.white.opacity(0.82))
                 .textCase(.uppercase)
                 .lineLimit(1)
         }
-        .padding(.horizontal, 7)
-        .padding(.vertical, 3)
+        .padding(.horizontal, spec.badgeHorizontalPadding)
+        .padding(.vertical, spec.badgeVerticalPadding)
         .background(Color.white.opacity(0.08), in: Capsule())
         .overlay(
             Capsule()
@@ -344,7 +445,7 @@ struct FeedTrackerLiveActivityWidget: Widget {
         backgroundOpacity: Double,
         action: FeedTrackerLiveActivityIntentAction,
         sessionID: String,
-        height: CGFloat
+        minHeight: CGFloat
     ) -> some View {
         Button(intent: FeedTrackerLiveActivityControlIntent(action: action, sessionID: sessionID)) {
             HStack(spacing: 5) {
@@ -355,7 +456,8 @@ struct FeedTrackerLiveActivityWidget: Widget {
             }
             .foregroundStyle(tint)
             .frame(maxWidth: .infinity)
-            .frame(height: height)
+            .padding(.horizontal, 10)
+            .frame(minHeight: minHeight)
             .background(tint.opacity(backgroundOpacity), in: Capsule())
             .overlay(Capsule().strokeBorder(tint.opacity(0.14), lineWidth: 1))
             .contentShape(Capsule())
@@ -365,8 +467,10 @@ struct FeedTrackerLiveActivityWidget: Widget {
         .accessibilityHint(Text("Executes directly from Live Activity"))
     }
 
-    private func liveClockView() -> some View {
+    private func liveClockView(font: Font, foregroundOpacity: Double) -> some View {
         Text(Date(), style: .time)
+            .font(font)
+            .foregroundStyle(.white.opacity(foregroundOpacity))
             .environment(\.locale, Self.liveClockLocale)
     }
 
@@ -444,4 +548,23 @@ struct FeedTrackerLiveActivityWidget: Widget {
 
         return String(format: "%02d:%02d", minutes, seconds)
     }
+}
+
+@available(iOSApplicationExtension 17.0, *)
+private struct LiveActivitySurfaceSpec {
+    let activeFont: Font
+    let totalFont: Font
+    let clockFont: Font
+    let badgeFont: Font
+    let contentSpacing: CGFloat
+    let timerSpacing: CGFloat
+    let compactTimerSpacing: CGFloat
+    let panelHorizontalPadding: CGFloat
+    let panelVerticalPadding: CGFloat
+    let metricMinHeight: CGFloat
+    let controlSize: CGFloat
+    let actionSpacing: CGFloat
+    let actionMinHeight: CGFloat
+    let badgeHorizontalPadding: CGFloat
+    let badgeVerticalPadding: CGFloat
 }
